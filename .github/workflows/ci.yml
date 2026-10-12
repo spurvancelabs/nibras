@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Detect package manager
+        id: pm
+        run: |
+          if [ -f pnpm-lock.yaml ]; then echo "manager=pnpm" >> $GITHUB_OUTPUT
+          elif [ -f yarn.lock ]; then echo "manager=yarn" >> $GITHUB_OUTPUT
+          else echo "manager=npm" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install pnpm
+        if: steps.pm.outputs.manager == 'pnpm'
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install (pnpm)
+        if: steps.pm.outputs.manager == 'pnpm'
+        run: pnpm install --frozen-lockfile
+
+      - name: Install (yarn)
+        if: steps.pm.outputs.manager == 'yarn'
+        run: yarn install --frozen-lockfile
+
+      - name: Install (npm)
+        if: steps.pm.outputs.manager == 'npm'
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Lint
+        run: npx next lint
+
+      - name: Build
+        env:
+          # Dummy values — build doesn't need real secrets, just the keys present
+          MONGODB_URI: mongodb://localhost:27017/build
+          AUTH_SECRET: build-time-dummy-secret-min-16-chars
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: dummy
+          NEXT_PUBLIC_CLOUDINARY_PRESET: dummy
+        run: npx next build
