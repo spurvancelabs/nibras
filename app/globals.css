@@ -164,8 +164,12 @@ header {
 /* Utility classes for theme colors */
 .bg-surface { background-color: var(--color-surface); }
 .bg-primary { background-color: var(--color-primary); }
+.bg-bg { background-color: var(--color-bg); }
 .text-primary { color: var(--color-primary); }
+.text-primary-fg { color: var(--color-primary-fg); }
+.text-text { color: var(--color-text); }
 .text-success { color: var(--color-success); }
 .text-warning { color: var(--color-warning); }
 .text-danger { color: var(--color-danger); }
 .border-color { border-color: var(--color-border); }
+.border-border { border-color: var(--color-border); }
