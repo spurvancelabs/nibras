@@ -30,7 +30,7 @@ export default function CloudinaryUpload({
     setError('');
 
     if (!CLOUD_NAME || !PRESET) {
-      setError('Cloudinary env vars missing');
+      setError('Cloudinary not configured. Please add NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_PRESET to your environment variables.');
       return;
     }
 
@@ -79,6 +79,15 @@ export default function CloudinaryUpload({
             if (f) handleFile(f);
           }}
         />
+        
+        <input
+          type="text"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Enter image URL or upload file"
+          className="input flex-1"
+        />
+        
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -94,7 +103,7 @@ export default function CloudinaryUpload({
             onClick={() => onChange('')}
             className="text-xs text-muted hover:underline"
           >
-            Remove
+            Clear
           </button>
         )}
       </div>

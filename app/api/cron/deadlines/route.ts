@@ -5,7 +5,6 @@ import Submission from '@/models/Submission';
 import Program from '@/models/Program';
 import { notifyMany } from '@/lib/notifications';
 import { sendEmail } from '@/lib/email';
-import User from '@/models/User';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,7 +53,7 @@ export async function GET(req: Request) {
       .lean();
     const submittedIds = new Set(submitted.map((s) => String(s.studentId)));
 
-    const pendingIds = studentIds.filter((id) => !submittedIds.has(id));
+    const pendingIds = studentIds.filter((id: string) => !submittedIds.has(id));
     if (pendingIds.length === 0) continue;
 
     const dueLabel = new Date(a.dueAt).toLocaleString(undefined, {

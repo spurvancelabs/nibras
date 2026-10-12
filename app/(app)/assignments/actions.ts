@@ -217,7 +217,7 @@ export async function submitAssignmentAction(raw: unknown): Promise<ActionResult
   })
     .select('mentors name')
     .lean();
-  const mentorIds = (program?.mentors ?? []).map(String);
+  const mentorIds = (program?.mentors ?? [] as unknown[]).map(String);
   if (mentorIds.length > 0) {
     await notifyMany({
       orgId: user.orgId,

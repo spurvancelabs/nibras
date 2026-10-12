@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Simple middleware - auth protection will be handled in individual pages for now
-export function middleware(request: NextRequest) {
-  // Allow all requests for now - we'll implement auth protection in page components
+// Simple proxy configuration - auth protection handled in page components
+export default function proxy(request: NextRequest) {
+  // Allow all requests - authentication is handled at the page level
   return NextResponse.next();
 }
 

@@ -71,7 +71,7 @@ export async function listSessionsForUser(
 ): Promise<SessionListItem[]> {
   await db();
 
-  let programIds: string[] | null = null;
+  let programIds: string[] = [];
   if (user.role !== 'admin') {
     const me = await User.findOne({ _id: user.id, orgId })
       .select('programIds')
@@ -81,7 +81,9 @@ export async function listSessionsForUser(
   }
 
   const query: Record<string, unknown> = { orgId };
-  if (programIds) query.programId = { $in: programIds };
+  if (programIds.length > 0) {
+    query.programId = { $in: programIds };
+  }
 
   const rows = await Session.find(query)
     .sort({ startsAt: -1 })
@@ -100,7 +102,7 @@ export async function listUpcomingForUser(
 ): Promise<SessionListItem[]> {
   await db();
 
-  let programIds: string[] | null = null;
+  let programIds: string[] = [];
   if (user.role !== 'admin') {
     const me = await User.findOne({ _id: user.id, orgId })
       .select('programIds')
@@ -114,7 +116,9 @@ export async function listUpcomingForUser(
     status: 'scheduled',
     startsAt: { $gte: new Date() },
   };
-  if (programIds) query.programId = { $in: programIds };
+  if (programIds.length > 0) {
+    query.programId = { $in: programIds };
+  }
 
   const rows = await Session.find(query)
     .sort({ startsAt: 1 })

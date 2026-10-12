@@ -35,24 +35,32 @@ export default async function DashboardPage() {
   const pendingForStudent =
     user.role === 'student'
       ? assignments
-          .filter((a) => a.myState === 'pending' || a.myState === 'overdue')
-          .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
-          .slice(0, 5)
+        .filter((a) => a.myState === 'pending' || a.myState === 'overdue')
+        .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
+        .slice(0, 5)
       : [];
 
   const toGradeForMentor =
     user.role === 'mentor' || user.role === 'admin'
       ? assignments
-          .filter((a) => a.submittedCount > a.gradedCount)
-          .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
-          .slice(0, 5)
+        .filter((a) => a.submittedCount > a.gradedCount)
+        .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
+        .slice(0, 5)
       : [];
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Welcome, {user.name}</h1>
-        <p className="text-sm text-muted capitalize">{user.role} dashboard</p>
+        <h1 className="text-2xl font-bold">
+          {greeting()}, {user.name?.split(' ')[0] ?? user.name}
+        </h1>
+        <p className="text-sm text-muted capitalize">
+          {user.role} · {new Date().toLocaleDateString(undefined, {
+            weekday: 'long',
+            month: 'long',
+            day: 'numeric',
+          })}
+        </p>
       </div>
 
       {user.role === 'admin' && (
@@ -130,9 +138,8 @@ export default async function DashboardPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{a.title}</p>
                         <p
-                          className={`text-xs ${
-                            overdue ? 'text-danger' : 'text-muted'
-                          }`}
+                          className={`text-xs ${overdue ? 'text-danger' : 'text-muted'
+                            }`}
                         >
                           {a.programName} · Due {fmt(a.dueAt)}
                         </p>
@@ -244,8 +251,8 @@ export default async function DashboardPage() {
                       p.status === 'active'
                         ? 'badge-success'
                         : p.status === 'archived'
-                        ? 'badge-muted'
-                        : 'badge-warning'
+                          ? 'badge-muted'
+                          : 'badge-warning'
                     }
                   >
                     {p.status}
@@ -276,4 +283,11 @@ function Stat({
     </div>
   );
   return href ? <Link href={href}>{inner}</Link> : inner;
+}
+
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
 }

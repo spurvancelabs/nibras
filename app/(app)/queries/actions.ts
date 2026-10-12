@@ -78,7 +78,7 @@ export async function createQueryAction(raw: unknown): Promise<ActionResult> {
   })
     .select('mentors name')
     .lean();
-  const mentorIds = (program?.mentors ?? []).map(String);
+  const mentorIds = (program?.mentors ?? [] as unknown[]).map(String);
   if (mentorIds.length > 0) {
     await notifyMany({
       orgId: user.orgId,
@@ -135,12 +135,12 @@ export async function replyAction(raw: unknown): Promise<ActionResult> {
     const program = await Program.findOne({ _id: q.programId, orgId: user.orgId })
       .select('mentors')
       .lean();
-    const mentorIds = new Set((program?.mentors ?? []).map(String));
+    const mentorIds = new Set((program?.mentors ?? [] as unknown[]).map(String));
     if (q.assignedMentorId) mentorIds.add(q.assignedMentorId);
     if (mentorIds.size > 0) {
       await notifyMany({
         orgId: user.orgId,
-        userIds: Array.from(mentorIds),
+        userIds: Array.from(mentorIds) as string[],
         type: 'query.reply',
         title: `Reply: ${q.subject}`,
         body: preview,

@@ -1,5 +1,5 @@
 import 'server-only';
-import { unstable_cache, revalidateTag } from 'next/cache';
+import { unstable_cache } from 'next/cache';
 import { db } from './db';
 import Setting, {
   DEFAULT_SETTINGS,
@@ -64,6 +64,12 @@ export async function updateSettings(
     { upsert: true, new: true, lean: true }
   );
 
-  revalidateTag('settings');
+  try {
+    // Next.js 16+ requires two arguments for revalidateTag
+    const { revalidateTag } = await import('next/cache');
+    revalidateTag('settings', 'max');
+  } catch (error) {
+    console.warn('Failed to revalidate settings tag:', error);
+  }
   return mergeSettings(doc as Record<string, unknown> | null);
 }
