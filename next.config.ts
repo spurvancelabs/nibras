@@ -51,20 +51,11 @@ const nextConfig = {
     ];
   },
   
-  // Webpack optimizations for Vercel
-  webpack: (
-    config: any,
-    { isServer }: { isServer: boolean }
-  ) => {
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-      };
-    }
-    return config;
+  // Turbopack configuration (replaces webpack for Next.js 16+)
+  turbopack: {
+    resolveAlias: {
+      // Turbopack equivalents for common webpack fallbacks
+    },
   },
 };
 
