@@ -52,7 +52,10 @@ const nextConfig = {
   },
   
   // Webpack optimizations for Vercel
-  webpack: (config, { isServer }) => {
+  webpack: (
+    config: any,
+    { isServer }: { isServer: boolean }
+  ) => {
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
