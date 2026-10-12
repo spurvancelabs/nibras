@@ -27,6 +27,20 @@ const Icon = {
       <path d="M16 2v4M8 2v4M3 10h18" />
     </svg>
   ),
+  assignments: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+      <rect x="9" y="3" width="6" height="4" rx="1" />
+      <path d="M9 12h6M9 16h6" />
+    </svg>
+  ),
+  queries: (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
   users: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
       strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -54,6 +68,8 @@ const Icon = {
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', roles: ['admin', 'mentor', 'student'], icon: Icon.dash },
   { href: '/sessions', label: 'Sessions', roles: ['admin', 'mentor', 'student'], icon: Icon.sessions },
+  { href: '/assignments', label: 'Assignments', roles: ['admin', 'mentor', 'student'], icon: Icon.assignments },
+  { href: '/queries', label: 'Queries', roles: ['admin', 'mentor', 'student'], icon: Icon.queries },
   { href: '/admin/programs', label: 'Programs', roles: ['admin'], icon: Icon.programs },
   { href: '/admin/users', label: 'Users', roles: ['admin'], icon: Icon.users },
   { href: '/admin/settings', label: 'Settings', roles: ['admin'], icon: Icon.settings },

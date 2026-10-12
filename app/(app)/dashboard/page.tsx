@@ -3,6 +3,8 @@ import { requireAuth } from '@/lib/auth-helpers';
 import { listPrograms } from '@/lib/programs';
 import { listUsers } from '@/lib/users';
 import { listUpcomingForUser } from '@/lib/sessions';
+import { listAssignments } from '@/lib/assignments';
+import { listOpenQueries } from '@/lib/queries';
 import Avatar from '@/components/Avatar';
 
 export const dynamic = 'force-dynamic';
@@ -20,11 +22,31 @@ function fmt(iso: string) {
 export default async function DashboardPage() {
   const user = await requireAuth();
 
-  const [programs, allUsers, upcoming] = await Promise.all([
-    listPrograms(user.orgId),
-    user.role === 'admin' ? listUsers(user.orgId) : Promise.resolve([]),
-    listUpcomingForUser(user.orgId, user, 5),
-  ]);
+  const [programs, allUsers, upcomingSessions, assignments, openQueries] =
+    await Promise.all([
+      listPrograms(user.orgId),
+      user.role === 'admin' ? listUsers(user.orgId) : Promise.resolve([]),
+      listUpcomingForUser(user.orgId, user, 5),
+      listAssignments(user.orgId, user),
+      listOpenQueries(user.orgId, user, 5),
+    ]);
+
+  const now = Date.now();
+  const pendingForStudent =
+    user.role === 'student'
+      ? assignments
+          .filter((a) => a.myState === 'pending' || a.myState === 'overdue')
+          .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
+          .slice(0, 5)
+      : [];
+
+  const toGradeForMentor =
+    user.role === 'mentor' || user.role === 'admin'
+      ? assignments
+          .filter((a) => a.submittedCount > a.gradedCount)
+          .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
+          .slice(0, 5)
+      : [];
 
   return (
     <div className="space-y-6">
@@ -50,31 +72,143 @@ export default async function DashboardPage() {
         </div>
       )}
 
+      <div className="grid lg:grid-cols-2 gap-6">
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold">Upcoming sessions</h2>
+            <Link href="/sessions" className="text-sm text-muted hover:underline">
+              View all
+            </Link>
+          </div>
+
+          {upcomingSessions.length === 0 ? (
+            <p className="text-sm text-muted">Nothing scheduled.</p>
+          ) : (
+            <div className="space-y-2">
+              {upcomingSessions.map((s) => (
+                <Link
+                  key={s.id}
+                  href={`/sessions/${s.id}`}
+                  className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-bg"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{s.title}</p>
+                    <p className="text-xs text-muted">
+                      {s.programName} · {fmt(s.startsAt)}
+                    </p>
+                  </div>
+                  <Avatar name={s.mentorName} src={s.mentorAvatar} size={24} />
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="card">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold">
+              {user.role === 'student' ? 'Your assignments' : 'To grade'}
+            </h2>
+            <Link href="/assignments" className="text-sm text-muted hover:underline">
+              View all
+            </Link>
+          </div>
+
+          {user.role === 'student' ? (
+            pendingForStudent.length === 0 ? (
+              <p className="text-sm text-muted">Nothing pending. 🎉</p>
+            ) : (
+              <div className="space-y-2">
+                {pendingForStudent.map((a) => {
+                  const overdue = a.myState === 'overdue';
+                  return (
+                    <Link
+                      key={a.id}
+                      href={`/assignments/${a.id}`}
+                      className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-bg"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{a.title}</p>
+                        <p
+                          className={`text-xs ${
+                            overdue ? 'text-danger' : 'text-muted'
+                          }`}
+                        >
+                          {a.programName} · Due {fmt(a.dueAt)}
+                        </p>
+                      </div>
+                      <span
+                        className={
+                          overdue ? 'badge-danger' : 'badge-warning'
+                        }
+                      >
+                        {a.myState}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            )
+          ) : toGradeForMentor.length === 0 ? (
+            <p className="text-sm text-muted">Nothing to grade.</p>
+          ) : (
+            <div className="space-y-2">
+              {toGradeForMentor.map((a) => (
+                <Link
+                  key={a.id}
+                  href={`/assignments/${a.id}`}
+                  className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-bg"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{a.title}</p>
+                    <p className="text-xs text-muted">
+                      {a.programName} · {a.submittedCount - a.gradedCount} to grade
+                    </p>
+                  </div>
+                  <span className="badge-warning">
+                    {a.submittedCount - a.gradedCount}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Queries panel */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="font-semibold">Upcoming sessions</h2>
-          <Link href="/sessions" className="text-sm text-muted hover:underline">
+          <h2 className="font-semibold">
+            {user.role === 'student' ? 'Your open queries' : 'Open queries'}
+          </h2>
+          <Link href="/queries" className="text-sm text-muted hover:underline">
             View all
           </Link>
         </div>
 
-        {upcoming.length === 0 ? (
-          <p className="text-sm text-muted">Nothing scheduled.</p>
+        {openQueries.length === 0 ? (
+          <p className="text-sm text-muted">
+            {user.role === 'student'
+              ? 'No open threads. Ask a question any time.'
+              : 'No open threads needing attention.'}
+          </p>
         ) : (
           <div className="space-y-2">
-            {upcoming.map((s) => (
+            {openQueries.map((q) => (
               <Link
-                key={s.id}
-                href={`/sessions/${s.id}`}
+                key={q.id}
+                href={`/queries/${q.id}`}
                 className="flex items-center justify-between gap-3 p-3 border border-border rounded-md hover:bg-bg"
               >
                 <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{s.title}</p>
-                  <p className="text-xs text-muted">
-                    {s.programName} · {fmt(s.startsAt)}
+                  <p className="text-sm font-medium truncate">{q.subject}</p>
+                  <p className="text-xs text-muted truncate">
+                    {q.programName} · {q.studentName}
                   </p>
                 </div>
-                <Avatar name={s.mentorName} src={s.mentorAvatar} size={24} />
+                <span className="badge-warning shrink-0">
+                  {q.messageCount} msg
+                </span>
               </Link>
             ))}
           </div>

@@ -2,12 +2,13 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAuth } from '@/lib/auth-helpers';
 import { getSession, canManageSession } from '@/lib/sessions';
-import { listSessionsForUser } from '@/lib/sessions';
+import { listMaterials } from '@/lib/materials';
 import { youtubeId } from '@/lib/youtube';
 import Avatar from '@/components/Avatar';
 import Program from '@/models/Program';
 import { db } from '@/lib/db';
 import SessionForm from '../SessionForm';
+import MaterialsPanel from './MaterialsPanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,8 @@ export default async function SessionPage({
       session.programId
     ));
 
+  const materials = await listMaterials(user.orgId, session.id);
+
   const start = new Date(session.startsAt);
   const end = new Date(session.endsAt);
   const fmt = (d: Date) =>
@@ -44,16 +47,12 @@ export default async function SessionPage({
 
   const ytId = youtubeId(session.recordingUrl);
 
-  // For the edit form, load the programs the user could assign to.
   let programOptions: { id: string; name: string }[] = [];
   if (canManage) {
     await db();
     const query: Record<string, unknown> = { orgId: user.orgId };
     if (user.role === 'mentor') query.mentors = user.id;
-    const rows = await Program.find(query)
-      .select('_id name')
-      .sort({ name: 1 })
-      .lean();
+    const rows = await Program.find(query).select('_id name').sort({ name: 1 }).lean();
     programOptions = rows.map((p) => ({
       id: String(p._id),
       name: p.name as string,
@@ -126,10 +125,29 @@ export default async function SessionPage({
         </div>
       )}
 
-      {/* Materials and Queries placeholders — real modules next */}
-      <div className="card text-sm text-muted">
-        Materials and query threads will appear here in later modules.
-      </div>
+      <MaterialsPanel
+        sessionId={session.id}
+        materials={materials}
+        canManage={canManage}
+      />
+
+      {/* Ask a question about this session (students only) */}
+      {user.role === 'student' && (
+        <div className="card flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold">Have a question?</h2>
+            <p className="text-xs text-muted">
+              Start a thread tied to this session — your mentors will be notified.
+            </p>
+          </div>
+          <Link
+            href={`/queries/new?sessionId=${session.id}`}
+            className="btn-primary text-sm"
+          >
+            Ask a question
+          </Link>
+        </div>
+      )}
 
       {canManage && (
         <div className="space-y-3">

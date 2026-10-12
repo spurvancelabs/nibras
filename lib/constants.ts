@@ -21,3 +21,25 @@ export type ThemeMode = (typeof THEME_MODES)[number];
 
 export const MATERIAL_KINDS = ['slide', 'doc', 'link'] as const;
 export type MaterialKind = (typeof MATERIAL_KINDS)[number];
+
+export const SUBMISSION_STATES = [
+  'pending',
+  'submitted',
+  'graded',
+  'overdue',
+] as const;
+export type SubmissionState = (typeof SUBMISSION_STATES)[number];
+
+export const QUERY_STATUSES = ['open', 'resolved'] as const;
+export type QueryStatus = (typeof QUERY_STATUSES)[number];
+
+export const NOTIFICATION_TYPES = [
+  'assignment.new',
+  'assignment.graded',
+  'assignment.due_soon',
+  'material.new',
+  'session.new',
+  'query.new',
+  'query.reply',
+] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
