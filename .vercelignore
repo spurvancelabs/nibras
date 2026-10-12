@@ -1,0 +1,46 @@
+# Vercel ignore file - exclude unnecessary files from deployment
+
+# Development files
+.env.local
+.env.development
+.env.test
+test-login.md
+DEPLOYMENT_FIX.md
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Testing
+coverage/
+.nyc_output
+
+# Documentation
+docs/
+*.md
+!README.md
+
+# Scripts (if not needed in production)
+scripts/seed.ts
+scripts/init-settings.ts
+
+# Development dependencies
+.github/

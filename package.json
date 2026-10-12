@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "type-check": "tsc --noEmit",
+    "build:analyze": "ANALYZE=true next build",
+    "vercel-build": "pnpm build",
+    "postbuild": "next-sitemap"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

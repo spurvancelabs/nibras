@@ -1,4 +1,4 @@
-name: CI
+name: CI/CD
 
 on:
   push:
@@ -7,9 +7,9 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -19,44 +19,66 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
-      - name: Detect package manager
-        id: pm
-        run: |
-          if [ -f pnpm-lock.yaml ]; then echo "manager=pnpm" >> $GITHUB_OUTPUT
-          elif [ -f yarn.lock ]; then echo "manager=yarn" >> $GITHUB_OUTPUT
-          else echo "manager=npm" >> $GITHUB_OUTPUT
-          fi
+          cache: 'pnpm'
 
       - name: Install pnpm
-        if: steps.pm.outputs.manager == 'pnpm'
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 12.3.4
+          run_install: false
 
-      - name: Install (pnpm)
-        if: steps.pm.outputs.manager == 'pnpm'
+      - name: Get pnpm store directory
+        shell: bash
+        run: |
+          echo "STORE_PATH=$(pnpm store path --silent)" >> $GITHUB_ENV
+
+      - name: Setup pnpm cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.STORE_PATH }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-store-
+
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install (yarn)
-        if: steps.pm.outputs.manager == 'yarn'
-        run: yarn install --frozen-lockfile
-
-      - name: Install (npm)
-        if: steps.pm.outputs.manager == 'npm'
-        run: npm ci
-
       - name: Type check
-        run: npx tsc --noEmit
+        run: pnpm type-check
 
-      - name: Lint
-        run: npx next lint
+      - name: Lint check  
+        run: pnpm lint
 
-      - name: Build
+      - name: Build application
         env:
-          # Dummy values — build doesn't need real secrets, just the keys present
-          MONGODB_URI: mongodb://localhost:27017/build
-          AUTH_SECRET: build-time-dummy-secret-min-16-chars
-          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: dummy
-          NEXT_PUBLIC_CLOUDINARY_PRESET: dummy
-        run: npx next build
+          # Dummy values for build - Vercel will use real env vars
+          MONGODB_URI: mongodb://localhost:27017/build-test
+          AUTH_SECRET: build-time-dummy-secret-minimum-32-chars-required-for-nextauth
+          AUTH_URL: http://localhost:3000
+          RESEND_API_KEY: dummy-key
+          RESEND_FROM: "Test <test@example.com>"
+          CLOUDINARY_CLOUD_NAME: dummy-cloud
+          CLOUDINARY_API_KEY: dummy-key
+          CLOUDINARY_API_SECRET: dummy-secret
+          NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME: dummy-cloud
+          NEXT_PUBLIC_CLOUDINARY_PRESET: dummy-preset
+          CRON_SECRET: dummy-cron-secret
+          NODE_ENV: production
+        run: pnpm build
+
+      - name: Check build output
+        run: |
+          ls -la .next/
+          echo "Build completed successfully"
+
+  # Deploy job that runs after successful build (only on main branch)
+  deploy:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    
+    steps:
+      - name: Deploy to Vercel
+        run: |
+          echo "🚀 Deployment will be handled by Vercel's Git integration"
+          echo "✅ All checks passed - ready for production deployment"
