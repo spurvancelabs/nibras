@@ -12,6 +12,8 @@ import {
 import { getSession, canManageSession } from '@/lib/sessions';
 import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
 import { MATERIAL_KINDS } from '@/lib/constants';
+import { notifyMany } from '@/lib/notifications';
+import Program from '@/models/Program';
 
 const createSchema = z.object({
   sessionId: z.string().min(1),
@@ -83,6 +85,26 @@ export async function createMaterialAction(raw: unknown): Promise<ActionResult> 
   });
   if (!res.ok) return res;
 
+  // Notify students of the program
+  const program = await Program.findOne({
+    _id: guard.session!.programId,
+    orgId: guard.user.orgId,
+  })
+    .select('students name')
+    .lean();
+  const studentIds = (program?.students ?? []).map(String);
+  if (studentIds.length > 0) {
+    await notifyMany({
+      orgId: guard.user.orgId,
+      userIds: studentIds,
+      type: 'material.new',
+      title: `New material: ${data.title}`,
+      body: `Added to "${guard.session!.title}" in ${program?.name ?? 'your program'}.`,
+      link: `/sessions/${data.sessionId}`,
+      email: false,
+    });
+  }
+
   revalidatePath(`/sessions/${data.sessionId}`);
   return { ok: true, id: res.id };
 }
@@ -126,7 +148,6 @@ export async function deleteMaterialAction(raw: unknown): Promise<ActionResult> 
   const res = await deleteMaterial(guard.user.orgId, parsed.data.id);
   if (!res.ok) return res;
 
-  // Best-effort: remove from Cloudinary. Fails are non-fatal.
   if (res.publicId) {
     await deleteCloudinaryAsset(
       res.publicId,

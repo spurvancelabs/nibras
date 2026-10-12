@@ -12,6 +12,8 @@ import {
   deleteQuery,
 } from '@/lib/queries';
 import { QUERY_STATUSES } from '@/lib/constants';
+import { notify, notifyMany } from '@/lib/notifications';
+import Program from '@/models/Program';
 
 const attachmentSchema = z.object({
   url: z.string().min(1).max(1000),
@@ -69,6 +71,26 @@ export async function createQueryAction(raw: unknown): Promise<ActionResult> {
   });
   if (!res.ok) return res;
 
+  // Notify mentors of the program
+  const program = await Program.findOne({
+    _id: parsed.data.programId,
+    orgId: user.orgId,
+  })
+    .select('mentors name')
+    .lean();
+  const mentorIds = (program?.mentors ?? []).map(String);
+  if (mentorIds.length > 0) {
+    await notifyMany({
+      orgId: user.orgId,
+      userIds: mentorIds,
+      type: 'query.new',
+      title: `New question: ${parsed.data.subject}`,
+      body: `From ${user.name ?? 'a student'} in ${program?.name ?? 'your program'}.`,
+      link: `/queries/${res.id}`,
+      email: true,
+    });
+  }
+
   revalidatePath('/queries');
   revalidatePath('/dashboard');
   return { ok: true, id: res.id };
@@ -101,6 +123,45 @@ export async function replyAction(raw: unknown): Promise<ActionResult> {
   });
   if (!res.ok) return res;
 
+  // Notify the other side.
+  // If replier is the student → notify mentors of the program + assigned mentor.
+  // Otherwise → notify the student.
+  const preview = parsed.data.body.length > 100
+    ? parsed.data.body.slice(0, 100) + '…'
+    : parsed.data.body;
+
+  if (user.id === q.studentId) {
+    // student replied — notify mentors + assigned mentor
+    const program = await Program.findOne({ _id: q.programId, orgId: user.orgId })
+      .select('mentors')
+      .lean();
+    const mentorIds = new Set((program?.mentors ?? []).map(String));
+    if (q.assignedMentorId) mentorIds.add(q.assignedMentorId);
+    if (mentorIds.size > 0) {
+      await notifyMany({
+        orgId: user.orgId,
+        userIds: Array.from(mentorIds),
+        type: 'query.reply',
+        title: `Reply: ${q.subject}`,
+        body: preview,
+        link: `/queries/${q.id}`,
+        email: false,
+      });
+    }
+  } else {
+    // mentor replied — notify student
+    await notify({
+      orgId: user.orgId,
+      userId: q.studentId,
+      type: 'query.reply',
+      title: `Reply to: ${q.subject}`,
+      body: preview,
+      link: `/queries/${q.id}`,
+      email: true,
+      dedupeKey: `reply:${q.id}:${Date.now()}`,
+    });
+  }
+
   revalidatePath(`/queries/${parsed.data.queryId}`);
   revalidatePath('/queries');
   revalidatePath('/dashboard');
@@ -109,11 +170,6 @@ export async function replyAction(raw: unknown): Promise<ActionResult> {
 
 export async function setStatusAction(raw: unknown): Promise<ActionResult> {
   const user = await requireAuth();
-  if (user.role === 'student') {
-    // Students can resolve/reopen their own threads
-  } else if (user.role !== 'mentor' && user.role !== 'admin') {
-    return { ok: false, error: 'Not allowed' };
-  }
 
   const parsed = statusSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, error: 'Invalid input' };

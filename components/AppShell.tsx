@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Sidebar from './Sidebar';
 import ThemeToggle from './ThemeToggle';
 import LogoutButton from './LogoutButton';
-import type { Role } from '@/models/User';
+import NotificationBell from './NotificationBell';
+import type { Role } from '@/lib/constants';
 
 type Props = {
   user: { name?: string | null; role: Role };
@@ -46,6 +47,7 @@ export default function AppShell({ user, orgName, logo, children }: Props) {
             <span className="text-sm text-muted hidden sm:inline">
               {user.name}
             </span>
+            <NotificationBell />
             <ThemeToggle />
             <LogoutButton />
           </div>

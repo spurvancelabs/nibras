@@ -17,6 +17,9 @@ import {
   getSubmissionById,
 } from '@/lib/submissions';
 import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
+import { notify, notifyMany } from '@/lib/notifications';
+import Program from '@/models/Program';
+import User from '@/models/User';
 
 const attachmentSchema = z.object({
   url: z.string().min(1).max(1000),
@@ -121,6 +124,32 @@ export async function saveAssignmentAction(raw: unknown): Promise<ActionResult> 
   });
   if (!res.ok) return res;
 
+  // Notify students in the program
+  const program = await Program.findOne({
+    _id: data.programId,
+    orgId: user.orgId,
+  })
+    .select('students name')
+    .lean();
+  const studentIds = (program?.students ?? []).map(String);
+  if (studentIds.length > 0) {
+    const dueLabel = new Date(data.dueAt).toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+    await notifyMany({
+      orgId: user.orgId,
+      userIds: studentIds,
+      type: 'assignment.new',
+      title: `New assignment: ${data.title}`,
+      body: `In ${program?.name ?? 'your program'}. Due ${dueLabel}.`,
+      link: `/assignments/${res.id}`,
+      email: true,
+    });
+  }
+
   revalidatePath('/assignments');
   revalidatePath('/dashboard');
   return { ok: true, id: res.id };
@@ -143,7 +172,6 @@ export async function deleteAssignmentAction(raw: unknown): Promise<ActionResult
   );
   if (!can) return { ok: false, error: 'Not allowed' };
 
-  // Delete attachment assets from Cloudinary (best-effort).
   for (const a of existing.attachments) {
     if (a.publicId) {
       await deleteCloudinaryAsset(
@@ -182,6 +210,26 @@ export async function submitAssignmentAction(raw: unknown): Promise<ActionResult
   });
   if (!res.ok) return res;
 
+  // Notify mentors of the program
+  const program = await Program.findOne({
+    _id: assignment.programId,
+    orgId: user.orgId,
+  })
+    .select('mentors name')
+    .lean();
+  const mentorIds = (program?.mentors ?? []).map(String);
+  if (mentorIds.length > 0) {
+    await notifyMany({
+      orgId: user.orgId,
+      userIds: mentorIds,
+      type: 'assignment.new',
+      title: `New submission: ${assignment.title}`,
+      body: `${user.name ?? 'A student'} submitted for ${program?.name ?? 'your program'}.`,
+      link: `/assignments/${assignment.id}`,
+      email: false,
+    });
+  }
+
   revalidatePath(`/assignments/${parsed.data.assignmentId}`);
   revalidatePath('/assignments');
   revalidatePath('/dashboard');
@@ -197,7 +245,6 @@ export async function gradeSubmissionAction(raw: unknown): Promise<ActionResult>
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' };
   }
 
-  // Load submission to find its assignment, then re-check program access.
   const temp = await getSubmissionById(
     user.orgId,
     parsed.data.submissionId,
@@ -224,6 +271,20 @@ export async function gradeSubmissionAction(raw: unknown): Promise<ActionResult>
     gradedBy: user.id,
   });
   if (!res.ok) return res;
+
+  // Notify the student
+  await notify({
+    orgId: user.orgId,
+    userId: temp.studentId,
+    type: 'assignment.graded',
+    title: `Graded: ${assignment.title}`,
+    body: `You scored ${parsed.data.marks}/${assignment.maxMarks}.${
+      parsed.data.feedback ? `\n\nFeedback: ${parsed.data.feedback}` : ''
+    }`,
+    link: `/assignments/${assignment.id}`,
+    email: true,
+    dedupeKey: `graded:${parsed.data.submissionId}:${Date.now()}`,
+  });
 
   revalidatePath(`/assignments/${assignment.id}`);
   revalidatePath('/assignments');
