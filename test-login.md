@@ -4,20 +4,7 @@ You can now test the LMS application with the following seeded users:
 
 ## Test Accounts
 
-1. **Admin User**
-   - Email: `admin@lms.dev`
-   - Password: `admin1234`
-   - Role: Admin
-
-2. **Mentor User**
-   - Email: `mentor@lms.dev`
-   - Password: `mentor1234`
-   - Role: Mentor
-
-3. **Student User**
-   - Email: `student@lms.dev`
-   - Password: `student1234`
-   - Role: Student
+https://nibras.spurvancelabs.com/
 
 ## How to Test
 

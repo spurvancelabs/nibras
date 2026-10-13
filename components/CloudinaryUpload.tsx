@@ -11,9 +11,6 @@ type Props = {
   className?: string;
 };
 
-const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? '';
-const PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET ?? '';
-
 export default function CloudinaryUpload({
   value,
   onChange,
@@ -28,20 +25,34 @@ export default function CloudinaryUpload({
 
   async function handleFile(file: File) {
     setError('');
-
-    if (!CLOUD_NAME || !PRESET) {
-      setError('Cloudinary not configured. Please add NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME and NEXT_PUBLIC_CLOUDINARY_PRESET to your environment variables.');
-      return;
-    }
-
     setUploading(true);
+
     try {
+      const signRes = await fetch('/api/cloudinary/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!signRes.ok) {
+        throw new Error('Could not get upload signature');
+      }
+      const sign = (await signRes.json()) as {
+        cloudName: string;
+        apiKey: string;
+        timestamp: number;
+        signature: string;
+        folder: string;
+      };
+
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('upload_preset', PRESET);
+      fd.append('api_key', sign.apiKey);
+      fd.append('timestamp', String(sign.timestamp));
+      fd.append('signature', sign.signature);
+      fd.append('folder', sign.folder);
 
       const res = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
+        `https://api.cloudinary.com/v1_1/${sign.cloudName}/${resourceType}/upload`,
         { method: 'POST', body: fd }
       );
 
@@ -64,7 +75,7 @@ export default function CloudinaryUpload({
         <img
           src={value}
           alt="preview"
-          className="h-16 w-auto border rounded-md bg-surface object-contain p-1"
+          className="h-16 w-auto border border-border rounded-md bg-surface object-contain p-1"
         />
       )}
 
@@ -79,15 +90,6 @@ export default function CloudinaryUpload({
             if (f) handleFile(f);
           }}
         />
-        
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          placeholder="Enter image URL or upload file"
-          className="input flex-1"
-        />
-        
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
@@ -103,7 +105,7 @@ export default function CloudinaryUpload({
             onClick={() => onChange('')}
             className="text-xs text-muted hover:underline"
           >
-            Clear
+            Remove
           </button>
         )}
       </div>

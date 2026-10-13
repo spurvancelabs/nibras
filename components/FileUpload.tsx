@@ -18,9 +18,6 @@ type Props = {
   className?: string;
 };
 
-const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ?? '';
-const PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_PRESET ?? '';
-
 export default function FileUpload({
   onUploaded,
   label = 'Choose file',
@@ -34,24 +31,40 @@ export default function FileUpload({
 
   async function handleFile(file: File) {
     setError('');
-    if (!CLOUD_NAME || !PRESET) {
-      setError('Cloudinary env vars missing');
-      return;
-    }
     setUploading(true);
     setProgress(0);
 
     try {
+      // 1. Get a signature from our server
+      const signRes = await fetch('/api/cloudinary/sign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      if (!signRes.ok) {
+        throw new Error('Could not get upload signature');
+      }
+      const sign = (await signRes.json()) as {
+        cloudName: string;
+        apiKey: string;
+        timestamp: number;
+        signature: string;
+        folder: string;
+      };
+
+      // 2. Upload directly to Cloudinary with the signature
       const fd = new FormData();
       fd.append('file', file);
-      fd.append('upload_preset', PRESET);
+      fd.append('api_key', sign.apiKey);
+      fd.append('timestamp', String(sign.timestamp));
+      fd.append('signature', sign.signature);
+      fd.append('folder', sign.folder);
 
-      // Simple progress via XHR (fetch doesn't support upload progress reliably)
       const result = await new Promise<UploadedFile>((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open(
           'POST',
-          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/auto/upload`
+          `https://api.cloudinary.com/v1_1/${sign.cloudName}/auto/upload`
         );
         xhr.upload.onprogress = (e) => {
           if (e.lengthComputable) {
@@ -80,7 +93,7 @@ export default function FileUpload({
               bytes: json.bytes ?? file.size,
               originalName: json.original_filename ?? file.name,
             });
-          } catch (e) {
+          } catch {
             reject(new Error('Invalid upload response'));
           }
         };
