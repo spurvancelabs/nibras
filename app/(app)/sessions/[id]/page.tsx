@@ -3,12 +3,17 @@ import { notFound } from 'next/navigation';
 import { requireAuth } from '@/lib/auth-helpers';
 import { getSession, canManageSession } from '@/lib/sessions';
 import { listMaterials } from '@/lib/materials';
+import {
+  getSessionAttendanceRoster,
+  getMySessionAttendance,
+} from '@/lib/attendance';
 import { youtubeId } from '@/lib/youtube';
 import Avatar from '@/components/Avatar';
 import Program from '@/models/Program';
 import { db } from '@/lib/db';
 import SessionForm from '../SessionForm';
 import MaterialsPanel from './MaterialsPanel';
+import AttendancePanel from './AttendancePanel';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,7 +37,19 @@ export default async function SessionPage({
       session.programId
     ));
 
-  const materials = await listMaterials(user.orgId, session.id);
+  const [materials, attendanceRoster, myAttendance] = await Promise.all([
+    listMaterials(user.orgId, session.id),
+    user.role === 'student'
+      ? Promise.resolve([])
+      : getSessionAttendanceRoster(
+          user.orgId,
+          session.programId,
+          session.id
+        ),
+    user.role === 'student'
+      ? getMySessionAttendance(user.orgId, session.id, user.id)
+      : Promise.resolve(null),
+  ]);
 
   const start = new Date(session.startsAt);
   const end = new Date(session.endsAt);
@@ -131,7 +148,14 @@ export default async function SessionPage({
         canManage={canManage}
       />
 
-      {/* Ask a question about this session (students only) */}
+      <AttendancePanel
+        sessionId={session.id}
+        roster={attendanceRoster}
+        canManage={canManage}
+        myAttendance={myAttendance}
+        viewerIsStudent={user.role === 'student'}
+      />
+
       {user.role === 'student' && (
         <div className="card flex items-center justify-between gap-3 flex-wrap">
           <div>

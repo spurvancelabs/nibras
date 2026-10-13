@@ -5,6 +5,7 @@ import { listUsers } from '@/lib/users';
 import { listUpcomingForUser } from '@/lib/sessions';
 import { listAssignments } from '@/lib/assignments';
 import { listOpenQueries } from '@/lib/queries';
+import { getStudentAttendanceSummary } from '@/lib/attendance';
 import Avatar from '@/components/Avatar';
 
 export const dynamic = 'force-dynamic';
@@ -19,34 +20,67 @@ function fmt(iso: string) {
   });
 }
 
+function greeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export default async function DashboardPage() {
   const user = await requireAuth();
 
-  const [programs, allUsers, upcomingSessions, assignments, openQueries] =
-    await Promise.all([
-      listPrograms(user.orgId),
-      user.role === 'admin' ? listUsers(user.orgId) : Promise.resolve([]),
-      listUpcomingForUser(user.orgId, user, 5),
-      listAssignments(user.orgId, user),
-      listOpenQueries(user.orgId, user, 5),
-    ]);
+  const [
+    programs,
+    allUsers,
+    upcomingSessions,
+    assignments,
+    openQueries,
+    attendanceSummary,
+  ] = await Promise.all([
+    listPrograms(user.orgId),
+    user.role === 'admin' ? listUsers(user.orgId) : Promise.resolve([]),
+    listUpcomingForUser(user.orgId, user, 5),
+    listAssignments(user.orgId, user),
+    listOpenQueries(user.orgId, user, 5),
+    user.role === 'student'
+      ? getStudentAttendanceSummary(user.orgId, user.id)
+      : Promise.resolve([]),
+  ]);
 
   const now = Date.now();
   const pendingForStudent =
     user.role === 'student'
       ? assignments
-        .filter((a) => a.myState === 'pending' || a.myState === 'overdue')
-        .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
-        .slice(0, 5)
+          .filter((a) => a.myState === 'pending' || a.myState === 'overdue')
+          .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
+          .slice(0, 5)
       : [];
 
   const toGradeForMentor =
     user.role === 'mentor' || user.role === 'admin'
       ? assignments
-        .filter((a) => a.submittedCount > a.gradedCount)
-        .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
-        .slice(0, 5)
+          .filter((a) => a.submittedCount > a.gradedCount)
+          .sort((a, b) => +new Date(a.dueAt) - +new Date(b.dueAt))
+          .slice(0, 5)
       : [];
+
+  // Overall attendance rate for students (across all programs)
+  const attendanceTotals = attendanceSummary.reduce(
+    (acc, s) => {
+      acc.present += s.present;
+      acc.absent += s.absent;
+      acc.late += s.late;
+      return acc;
+    },
+    { present: 0, absent: 0, late: 0 }
+  );
+  const attendanceDenom =
+    attendanceTotals.present + attendanceTotals.absent + attendanceTotals.late;
+  const attendanceRate =
+    attendanceDenom > 0
+      ? (attendanceTotals.present + attendanceTotals.late) / attendanceDenom
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -77,6 +111,31 @@ export default async function DashboardPage() {
             value={allUsers.filter((u) => u.role === 'student').length}
             href="/admin/users?role=student"
           />
+        </div>
+      )}
+
+      {user.role === 'student' && attendanceDenom > 0 && (
+        <div className="card">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-xs text-muted uppercase tracking-wide">
+                Your attendance
+              </p>
+              <p className="text-2xl font-bold mt-1">
+                {Math.round(attendanceRate * 100)}%
+              </p>
+              <p className="text-xs text-muted mt-0.5">
+                {attendanceTotals.present} present · {attendanceTotals.late} late ·{' '}
+                {attendanceTotals.absent} absent
+              </p>
+            </div>
+            <Link
+              href="/attendance"
+              className="btn-outline text-sm"
+            >
+              View details
+            </Link>
+          </div>
         </div>
       )}
 
@@ -138,8 +197,9 @@ export default async function DashboardPage() {
                       <div className="min-w-0">
                         <p className="text-sm font-medium truncate">{a.title}</p>
                         <p
-                          className={`text-xs ${overdue ? 'text-danger' : 'text-muted'
-                            }`}
+                          className={`text-xs ${
+                            overdue ? 'text-danger' : 'text-muted'
+                          }`}
                         >
                           {a.programName} · Due {fmt(a.dueAt)}
                         </p>
@@ -182,7 +242,6 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Queries panel */}
       <div className="card">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold">
@@ -251,8 +310,8 @@ export default async function DashboardPage() {
                       p.status === 'active'
                         ? 'badge-success'
                         : p.status === 'archived'
-                          ? 'badge-muted'
-                          : 'badge-warning'
+                        ? 'badge-muted'
+                        : 'badge-warning'
                     }
                   >
                     {p.status}
@@ -283,11 +342,4 @@ function Stat({
     </div>
   );
   return href ? <Link href={href}>{inner}</Link> : inner;
-}
-
-function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
 }
