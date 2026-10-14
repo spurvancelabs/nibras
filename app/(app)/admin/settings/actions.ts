@@ -17,6 +17,16 @@ const paletteSchema = z.object({
   danger: z.string().min(1).max(200),
 });
 
+const urlOrEmpty = z
+  .string()
+  .max(300)
+  .refine(
+    (v) => v === '' || /^https?:\/\/\S+$/i.test(v),
+    { message: 'Must be a valid URL starting with http:// or https://' }
+  )
+  .optional()
+  .default('');
+
 const schema = z.object({
   orgName: z.string().min(1).max(80),
   logo: z.string().max(500).optional().default(''),
@@ -31,7 +41,7 @@ const schema = z.object({
   font: z.string().min(1).max(200),
 
   contactEmail: z.string().max(120).optional().default(''),
-  supportUrl: z.string().max(300).optional().default(''),
+  supportUrl: urlOrEmpty,
 });
 
 export type SettingsActionResult =

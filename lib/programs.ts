@@ -170,3 +170,28 @@ export async function setProgramMembers(
 
   return { ok: true };
 }
+export async function isProgramActive(
+  orgId: string,
+  programId: string
+): Promise<boolean> {
+  await db();
+  const p = await Program.findOne({
+    _id: programId,
+    orgId,
+    status: 'active',
+  })
+    .select('_id')
+    .lean();
+  return !!p;
+}
+
+export async function getProgramStatus(
+  orgId: string,
+  programId: string
+): Promise<'draft' | 'active' | 'archived' | null> {
+  await db();
+  const p = await Program.findOne({ _id: programId, orgId })
+    .select('status')
+    .lean();
+  return (p?.status as 'draft' | 'active' | 'archived' | undefined) ?? null;
+}

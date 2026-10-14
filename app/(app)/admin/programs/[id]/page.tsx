@@ -32,6 +32,13 @@ export default async function ProgramPage({
         </p>
       </div>
 
+      {program.status !== 'active' && (
+        <div className="card border-warning bg-amber-50 dark:bg-amber-900/20 text-sm">
+          This program is <strong>{program.status}</strong>. Content is read-only until
+          you change the status to <strong>active</strong>.
+        </div>
+      )}
+
       <ProgramForm initial={program} />
 
       <MembersPicker

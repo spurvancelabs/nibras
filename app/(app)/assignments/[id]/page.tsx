@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAuth } from '@/lib/auth-helpers';
+import { cloudinaryDownloadUrl } from '@/lib/cloudinary-url';
 import {
   getAssignment,
   canManageProgramAssignments,
@@ -148,10 +149,7 @@ export default async function AssignmentPage({
               <li key={i} className="py-2 flex items-center gap-3">
                 <span className="truncate flex-1 text-sm">{a.originalName}</span>
                 <a
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={a.originalName || undefined}
+                  href={cloudinaryDownloadUrl(a.url, a.originalName)}
                   className="btn-outline text-sm"
                 >
                   Download

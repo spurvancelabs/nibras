@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Avatar from '@/components/Avatar';
+import { cloudinaryDownloadUrl } from '@/lib/cloudinary-url';
 import { gradeSubmissionAction, ungradeSubmissionAction } from '../actions';
 import type { RosterRow, SubmissionView } from '@/lib/submissions';
 
@@ -185,10 +186,7 @@ function GradePanel({
               <li key={i} className="flex items-center gap-2 p-2">
                 <span className="truncate flex-1 text-sm">{a.originalName}</span>
                 <a
-                  href={a.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  download={a.originalName || undefined}
+                  href={cloudinaryDownloadUrl(a.url, a.originalName)}
                   className="text-xs hover:underline"
                 >
                   Download

@@ -178,16 +178,25 @@ export default function SessionForm({ programs, mentors, viewerRole, initial, ca
         <label className="label">Meeting URL (optional)</label>
         <input
           className="input"
+          type="url"
+          inputMode="url"
+          pattern="https?://.+"
           value={form.meetingUrl}
           onChange={(e) => setForm({ ...form, meetingUrl: e.target.value })}
           placeholder="https://meet.google.com/…"
         />
+        <p className="text-xs text-muted mt-1">
+          Must start with http:// or https://
+        </p>
       </div>
 
       <div>
         <label className="label">Recording URL (YouTube, optional)</label>
         <input
           className="input"
+          type="url"
+          inputMode="url"
+          pattern="https?://.+"
           value={form.recordingUrl}
           onChange={(e) => setForm({ ...form, recordingUrl: e.target.value })}
           placeholder="https://youtu.be/…"

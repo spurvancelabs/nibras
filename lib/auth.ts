@@ -5,6 +5,7 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { db } from './db';
 import User from '@/models/User';
+import { authConfig } from './auth.config';
 
 const credentialsSchema = z.object({
   email: z.string().email(),
@@ -28,8 +29,7 @@ declare module 'next-auth' {
 }
 
 export const authOptions = {
-  session: { strategy: 'jwt' as const },
-  pages: { signIn: '/login' },
+  ...authConfig,
   providers: [
     Credentials({
       name: 'Credentials',
@@ -73,24 +73,6 @@ export const authOptions = {
       },
     }),
   ],
-  callbacks: {
-    jwt({ token, user }: { token: any; user?: any }) {
-      if (user) {
-        token.id = user.id;
-        token.role = user.role;
-        token.orgId = user.orgId;
-      }
-      return token;
-    },
-    session({ session, token }: { session: any; token: any }) {
-      if (session.user) {
-        session.user.id = token.id;
-        session.user.role = token.role;
-        session.user.orgId = token.orgId;
-      }
-      return session;
-    },
-  },
 };
 
 export const auth = () => getServerSession(authOptions);

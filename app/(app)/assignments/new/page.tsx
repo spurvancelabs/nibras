@@ -13,7 +13,10 @@ export default async function NewAssignmentPage() {
   }
 
   await db();
-  const query: Record<string, unknown> = { orgId: user.orgId };
+  const query: Record<string, unknown> = { 
+    orgId: user.orgId,
+    status: 'active',
+  };
   if (user.role === 'mentor') query.mentors = user.id;
 
   const programs = await Program.find(query).select('_id name').sort({ name: 1 }).lean();

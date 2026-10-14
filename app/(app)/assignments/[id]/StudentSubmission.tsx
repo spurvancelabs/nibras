@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import FileUpload, { type UploadedFile } from '@/components/FileUpload';
+import { cloudinaryDownloadUrl } from '@/lib/cloudinary-url';
 import { submitAssignmentAction } from '../actions';
 import type { SubmissionView } from '@/lib/submissions';
 import type { SubmissionState } from '@/lib/constants';
@@ -222,10 +223,7 @@ export default function StudentSubmission({
                         {a.originalName}
                       </span>
                       <a
-                        href={a.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        download={a.originalName || undefined}
+                        href={cloudinaryDownloadUrl(a.url, a.originalName)}
                         className="text-xs hover:underline"
                       >
                         Download

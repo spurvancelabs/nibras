@@ -19,7 +19,10 @@ export default async function NewSessionPage() {
 
   await db();
 
-  const programQuery: Record<string, unknown> = { orgId: user.orgId };
+  const programQuery: Record<string, unknown> = { 
+    orgId: user.orgId,
+    status: 'active',
+  };
   if (user.role === 'mentor') {
     programQuery.mentors = user.id;
   }

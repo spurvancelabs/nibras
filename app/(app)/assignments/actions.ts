@@ -16,6 +16,7 @@ import {
   ungradeSubmission,
   getSubmissionById,
 } from '@/lib/submissions';
+import { isProgramActive } from '@/lib/programs';
 import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
 import { notify, notifyMany } from '@/lib/notifications';
 import Program from '@/models/Program';
@@ -83,6 +84,11 @@ export async function saveAssignmentAction(raw: unknown): Promise<ActionResult> 
     data.programId
   );
   if (!canWrite) return { ok: false, error: 'Not allowed for this program' };
+
+  const active = await isProgramActive(user.orgId, data.programId);
+  if (!active) {
+    return { ok: false, error: 'Cannot modify assignments in a draft or archived program' };
+  }
 
   if (data.id) {
     const existing = await getAssignment(user.orgId, data.id);
@@ -202,6 +208,11 @@ export async function submitAssignmentAction(raw: unknown): Promise<ActionResult
   const assignment = await getAssignment(user.orgId, parsed.data.assignmentId);
   if (!assignment) return { ok: false, error: 'Assignment not found' };
 
+  const active = await isProgramActive(user.orgId, assignment.programId);
+  if (!active) {
+    return { ok: false, error: 'This program is not accepting submissions' };
+  }
+
   const res = await submitAssignment({
     orgId: user.orgId,
     assignmentId: parsed.data.assignmentId,
@@ -223,6 +234,7 @@ export async function submitAssignmentAction(raw: unknown): Promise<ActionResult
     await notifyMany({
       orgId: user.orgId,
       userIds: mentorIds,
+      includeAdmins: true,
       type: 'assignment.new',
       title: `New submission: ${assignment.title}`,
       body: `${user.name ?? 'A student'} submitted for ${program?.name ?? 'your program'}.`,

@@ -4,6 +4,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import Avatar from '@/components/Avatar';
 import FileUpload, { type UploadedFile } from '@/components/FileUpload';
+import { cloudinaryDownloadUrl } from '@/lib/cloudinary-url';
 import {
   createMaterialAction,
   deleteMaterialAction,
@@ -296,10 +297,7 @@ export default function MaterialsPanel({ sessionId, materials, canManage }: Prop
                   </a>
                 ) : (
                   <a
-                    href={m.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={m.originalName || undefined}
+                    href={cloudinaryDownloadUrl(m.url, m.originalName)}
                     className="btn-outline text-sm"
                   >
                     Download

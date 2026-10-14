@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/auth-helpers';
 import { getSession, canManageSession } from '@/lib/sessions';
 import { setSessionAttendance } from '@/lib/attendance';
+import { isProgramActive } from '@/lib/programs';
 import { ATTENDANCE_STATUSES } from '@/lib/constants';
 
 const entrySchema = z.object({
@@ -41,6 +42,11 @@ export async function saveAttendanceAction(raw: unknown): Promise<ActionResult> 
     session.programId
   );
   if (!can) return { ok: false, error: 'Not allowed' };
+
+  const active = await isProgramActive(user.orgId, session.programId);
+  if (!active) {
+    return { ok: false, error: 'Cannot mark attendance for a draft or archived program' };
+  }
 
   const res = await setSessionAttendance({
     orgId: user.orgId,

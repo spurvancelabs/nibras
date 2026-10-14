@@ -10,9 +10,20 @@ import {
   getSession,
   canManageSession,
 } from '@/lib/sessions';
+import { isProgramActive } from '@/lib/programs';
 import { SESSION_STATUSES } from '@/models/Session';
 import { Types } from 'mongoose';
 import Program from '@/models/Program';
+
+const urlOrEmpty = z
+  .string()
+  .max(500)
+  .refine(
+    (v) => v === '' || /^https?:\/\/\S+$/i.test(v),
+    { message: 'Must be a valid URL starting with http:// or https://' }
+  )
+  .optional()
+  .default('');
 
 const upsertSchema = z
   .object({
@@ -23,8 +34,8 @@ const upsertSchema = z
     agenda: z.string().max(4000).optional().default(''),
     startsAt: z.string().min(1),
     endsAt: z.string().min(1),
-    meetingUrl: z.string().max(500).optional().default(''),
-    recordingUrl: z.string().max(500).optional().default(''),
+    meetingUrl: urlOrEmpty,
+    recordingUrl: urlOrEmpty,
     status: z.enum(SESSION_STATUSES).optional(),
   })
   .refine((v) => new Date(v.endsAt) > new Date(v.startsAt), {
@@ -61,6 +72,11 @@ export async function saveSessionAction(raw: unknown): Promise<ActionResult> {
     .select('mentors')
     .lean();
   if (!program) return { ok: false, error: 'Program not found' };
+
+  const active = await isProgramActive(user.orgId, data.programId);
+  if (!active) {
+    return { ok: false, error: 'Cannot modify sessions in a draft or archived program' };
+  }
 
   if (user.role === 'mentor') {
     const isMentor =

@@ -13,6 +13,7 @@ import {
 } from '@/lib/queries';
 import { QUERY_STATUSES } from '@/lib/constants';
 import { notify, notifyMany } from '@/lib/notifications';
+import { isProgramActive } from '@/lib/programs';
 import Program from '@/models/Program';
 
 const attachmentSchema = z.object({
@@ -60,6 +61,11 @@ export async function createQueryAction(raw: unknown): Promise<ActionResult> {
     return { ok: false, error: parsed.error.issues[0]?.message ?? 'Invalid input' };
   }
 
+  const active = await isProgramActive(user.orgId, parsed.data.programId);
+  if (!active) {
+    return { ok: false, error: 'This program is not active' };
+  }
+
   const res = await createQuery({
     orgId: user.orgId,
     programId: parsed.data.programId,
@@ -83,6 +89,7 @@ export async function createQueryAction(raw: unknown): Promise<ActionResult> {
     await notifyMany({
       orgId: user.orgId,
       userIds: mentorIds,
+      includeAdmins: true,
       type: 'query.new',
       title: `New question: ${parsed.data.subject}`,
       body: `From ${user.name ?? 'a student'} in ${program?.name ?? 'your program'}.`,

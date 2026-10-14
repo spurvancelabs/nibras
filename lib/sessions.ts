@@ -88,7 +88,19 @@ export async function listSessionsForUser(
   await db();
 
   let programIds: string[] = [];
-  if (user.role !== 'admin') {
+  if (user.role === 'student') {
+    // Students only see active programs
+    const activePrograms = await Program.find({
+      orgId,
+      status: 'active',
+      students: user.id,
+    })
+      .select('_id')
+      .lean();
+    const activeIds = activePrograms.map((p) => String(p._id));
+    if (activeIds.length === 0) return [];
+    programIds = activeIds;
+  } else if (user.role === 'mentor') {
     const me = await User.findOne({ _id: user.id, orgId })
       .select('programIds')
       .lean();
@@ -119,7 +131,19 @@ export async function listUpcomingForUser(
   await db();
 
   let programIds: string[] = [];
-  if (user.role !== 'admin') {
+  if (user.role === 'student') {
+    // Students only see active programs
+    const activePrograms = await Program.find({
+      orgId,
+      status: 'active',
+      students: user.id,
+    })
+      .select('_id')
+      .lean();
+    const activeIds = activePrograms.map((p) => String(p._id));
+    if (activeIds.length === 0) return [];
+    programIds = activeIds;
+  } else if (user.role === 'mentor') {
     const me = await User.findOne({ _id: user.id, orgId })
       .select('programIds')
       .lean();

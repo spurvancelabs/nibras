@@ -128,11 +128,25 @@ export async function listQueries(
 
   if (user.role === 'student') {
     query.studentId = user.id;
-  } else if (user.role === 'mentor') {
-    const programs = await Program.find({ orgId, mentors: user.id })
+    const activePrograms = await Program.find({
+      orgId,
+      status: 'active',
+      students: user.id,
+    })
       .select('_id')
       .lean();
-    const ids = programs.map((p) => String(p._id));
+    const ids = activePrograms.map((p) => String(p._id));
+    if (ids.length === 0) return [];
+    query.programId = { $in: ids };
+  } else if (user.role === 'mentor') {
+    const activePrograms = await Program.find({
+      orgId,
+      status: 'active',
+      mentors: user.id,
+    })
+      .select('_id')
+      .lean();
+    const ids = activePrograms.map((p) => String(p._id));
     if (ids.length === 0) return [];
     query.programId = { $in: ids };
   }

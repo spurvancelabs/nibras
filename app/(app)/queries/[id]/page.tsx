@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAuth } from '@/lib/auth-helpers';
+import { cloudinaryDownloadUrl } from '@/lib/cloudinary-url';
 import {
   getQuery,
   listMessages,
@@ -138,10 +139,7 @@ export default async function QueryThreadPage({
                     {m.attachments.map((a, i) => (
                       <li key={i}>
                         <a
-                          href={a.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          download={a.originalName || undefined}
+                          href={cloudinaryDownloadUrl(a.url, a.originalName)}
                           className={`text-xs underline ${
                             mine ? 'opacity-90' : 'text-muted'
                           }`}

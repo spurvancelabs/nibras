@@ -1,12 +1,11 @@
-import { NextRequest, NextResponse } from 'next/server';
+import NextAuth from 'next-auth';
+import { authConfig } from '@/lib/auth.config';
 
-// Simple proxy configuration - auth protection handled in page components
-export default function proxy(request: NextRequest) {
-  // Allow all requests - authentication is handled at the page level
-  return NextResponse.next();
-}
+const { auth } = NextAuth(authConfig);
+
+export default auth;
 
 export const config = {
-  // Skip static files and api routes
+  // Skip API routes, static assets, and files with an extension
   matcher: ['/((?!api|_next/static|_next/image|favicon.ico|.*\\..*).*)'],
 };

@@ -237,10 +237,16 @@ export default function SettingsForm({ initial }: Props) {
               <label className="label">Support URL</label>
               <input
                 className="input"
+                type="url"
+                inputMode="url"
+                pattern="https?://.+"
                 value={form.supportUrl}
                 onChange={(e) => setField('supportUrl', e.target.value)}
                 placeholder="https://…"
               />
+              <p className="text-xs text-muted mt-1">
+                Must start with http:// or https://
+              </p>
             </div>
           </div>
         </section>

@@ -79,12 +79,26 @@ export async function listAssignments(
 
   // Program scope
   let programIds: string[] | null = null;
-  if (user.role !== 'admin') {
-    const field = user.role === 'mentor' ? 'mentors' : 'students';
-    const programs = await Program.find({ orgId, [field]: user.id })
+  if (user.role === 'student') {
+    const activePrograms = await Program.find({
+      orgId,
+      status: 'active',
+      students: user.id,
+    })
       .select('_id')
       .lean();
-    programIds = programs.map((p) => String(p._id));
+    programIds = activePrograms.map((p) => String(p._id));
+    if (programIds.length === 0) return [];
+  } else if (user.role === 'mentor') {
+    // mentors: only active programs for their new content view
+    const activePrograms = await Program.find({
+      orgId,
+      status: 'active',
+      mentors: user.id,
+    })
+      .select('_id')
+      .lean();
+    programIds = activePrograms.map((p) => String(p._id));
     if (programIds.length === 0) return [];
   }
 

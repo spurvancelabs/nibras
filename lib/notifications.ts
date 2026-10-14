@@ -97,18 +97,35 @@ export async function notifyMany(input: {
   link?: string;
   email?: boolean;
   dedupeKeyPrefix?: string;
+  /** Include all admins in this org automatically. */
+  includeAdmins?: boolean;
 }): Promise<void> {
-  if (input.userIds.length === 0) return;
+  let userIds = input.userIds;
+
+  if (input.includeAdmins) {
+    const admins = await User.find({
+      orgId: input.orgId,
+      role: 'admin',
+      status: 'active',
+    })
+      .select('_id')
+      .lean();
+    const adminIds = admins.map((a) => String(a._id));
+    const merged = new Set([...userIds, ...adminIds]);
+    userIds = Array.from(merged);
+  }
+
+  if (userIds.length === 0) return;
 
   // Fire in parallel but bounded — chunk to 20 at a time to be gentle.
   const chunks: string[][] = [];
-  for (let i = 0; i < input.userIds.length; i += 20) {
-    chunks.push(input.userIds.slice(i, i + 20));
+  for (let i = 0; i < userIds.length; i += 20) {
+    chunks.push(userIds.slice(i, i + 20));
   }
 
   for (const chunk of chunks) {
     await Promise.all(
-      chunk.map((userId, idx) =>
+      chunk.map((userId) =>
         notify({
           orgId: input.orgId,
           userId,

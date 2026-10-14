@@ -13,6 +13,7 @@ import { getSession, canManageSession } from '@/lib/sessions';
 import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
 import { MATERIAL_KINDS } from '@/lib/constants';
 import { notifyMany } from '@/lib/notifications';
+import { isProgramActive } from '@/lib/programs';
 import Program from '@/models/Program';
 
 const createSchema = z.object({
@@ -68,6 +69,11 @@ export async function createMaterialAction(raw: unknown): Promise<ActionResult> 
   const guard = await assertCanManage(data.sessionId);
   if (guard.error) return { ok: false, error: guard.error };
 
+  const active = await isProgramActive(guard.user.orgId, guard.session!.programId);
+  if (!active) {
+    return { ok: false, error: 'Cannot add materials to a draft or archived program' };
+  }
+
   const res = await createMaterial({
     orgId: guard.user.orgId,
     sessionId: data.sessionId,
@@ -97,6 +103,7 @@ export async function createMaterialAction(raw: unknown): Promise<ActionResult> 
     await notifyMany({
       orgId: guard.user.orgId,
       userIds: studentIds,
+      includeAdmins: true,
       type: 'material.new',
       title: `New material: ${data.title}`,
       body: `Added to "${guard.session!.title}" in ${program?.name ?? 'your program'}.`,
