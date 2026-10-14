@@ -1,12 +1,13 @@
+import type { NextAuthConfig } from 'next-auth';
 import { NextResponse } from 'next/server';
 
 export const authConfig = {
-  session: { strategy: 'jwt' as const },
+  session: { strategy: 'jwt' },
   pages: { signIn: '/login' },
   providers: [],
 
   callbacks: {
-    authorized({ auth, request }: { auth: any; request: any }) {
+    authorized({ auth, request }) {
       const isLoggedIn = !!auth?.user;
       const path = request.nextUrl.pathname;
       const isAuthPage = path.startsWith('/login');
@@ -22,7 +23,7 @@ export const authConfig = {
       return isLoggedIn;
     },
 
-    jwt({ token, user }: { token: any; user?: any }) {
+    jwt({ token, user }) {
       if (user) {
         token.id = (user as { id: string }).id;
         token.role = (user as { role: 'admin' | 'mentor' | 'student' }).role;
@@ -31,7 +32,7 @@ export const authConfig = {
       return token;
     },
 
-    session({ session, token }: { session: any; token: any }) {
+    session({ session, token }) {
       if (session.user) {
         session.user.id = token.id;
         session.user.role = token.role;
@@ -40,4 +41,4 @@ export const authConfig = {
       return session;
     },
   },
-};
+} satisfies NextAuthConfig;
