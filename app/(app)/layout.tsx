@@ -1,16 +1,6 @@
 import { requireAuth } from '@/lib/auth-helpers';
+import { getSettings } from '@/lib/settings';
 import AppShell from '@/components/AppShell';
-import { DEFAULT_SETTINGS } from '@/models/Setting';
-
-let getSettings: () => Promise<any>;
-
-try {
-  const settingsModule = await import('@/lib/settings');
-  getSettings = settingsModule.getSettings;
-} catch (error) {
-  console.warn('Settings module not available in app layout:', error);
-  getSettings = async () => DEFAULT_SETTINGS;
-}
 
 export default async function AppLayout({
   children,
@@ -18,13 +8,7 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireAuth();
-  
-  let s = DEFAULT_SETTINGS;
-  try {
-    s = await getSettings();
-  } catch (error) {
-    console.warn('Failed to load settings in app layout:', error);
-  }
+  const s = await getSettings();
 
   return (
     <AppShell
