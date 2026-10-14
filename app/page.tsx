@@ -1,547 +1,486 @@
-import Link from "next/link";
-import { getSettings } from "@/lib/settings";
-import { auth } from "@/lib/auth";
-import { db } from "@/lib/db";
-import Program from "@/models/Program";
-import User from "@/models/User";
+import Link from 'next/link';
+import Image from 'next/image';
+import { getSettings } from '@/lib/settings';
+import { auth } from '@/lib/auth';
+import { db } from '@/lib/db';
+import Program from '@/models/Program';
+import User from '@/models/User';
+import Session from '@/models/Session';
 
-export const dynamic = "force-dynamic";
+export const dynamic = 'force-dynamic';
 
-type PublicStats = {
+// ---------------------------------------------------------------------------
+// Live stats — counts only, no PII.
+// ---------------------------------------------------------------------------
+
+type Stats = {
   programs: number;
   mentors: number;
   students: number;
+  sessions: number;
 };
 
-type AnySettings = Record<string, unknown> & {
-  orgName?: string;
-  logo?: string;
-  contactEmail?: string;
-  supportUrl?: string;
-};
-
-const DEFAULTS = {
-  orgName: "Your Organization",
-  tagline: "One workspace. Every program. Clear progress.",
-  description:
-    "Bring your people, programs, learning, resources, and operations together in one organized workspace.",
-  eyebrow: "ORGANIZATION WORKSPACE",
-  primary: "#2563eb",
-  primaryForeground: "#ffffff",
-  accent: "#14b8a6",
-  page: "#f6f8fc",
-  surface: "#ffffff",
-  text: "#101828",
-  muted: "#667085",
-  border: "#e4e7ec",
-  heroTitle: "Everything your organization needs. In one place.",
-  heroDescription:
-    "Manage programs, coordinate teams, share resources, and follow progress from a platform that adapts to the way your organization works.",
-  signInLabel: "Sign in",
-  dashboardLabel: "Open workspace",
-  featuresTitle: "A connected workspace for your organization",
-  featuresDescription:
-    "A flexible foundation for day-to-day operations, with tools that work together instead of living in separate places.",
-  stepsTitle: "From setup to progress",
-  ctaTitle: "Bring your organization into one workspace",
-  ctaDescription:
-    "Sign in with the credentials provided by your administrator, or contact your organization to get access.",
-  footerText: "A connected workspace for people and programs.",
-};
-
-const DEFAULT_FEATURES = [
-  {
-    title: "Programs & initiatives",
-    description:
-      "Keep programs, cohorts, participants, and activities organized in one place.",
-    icon: "◫",
-  },
-  {
-    title: "People & permissions",
-    description:
-      "Give administrators, mentors, team members, and participants access appropriate to their roles.",
-    icon: "◎",
-  },
-  {
-    title: "Sessions & events",
-    description:
-      "Coordinate schedules, agendas, meeting links, and recordings without scattered information.",
-    icon: "◷",
-  },
-  {
-    title: "Tasks & submissions",
-    description:
-      "Publish work, set due dates, collect submissions, and keep feedback connected to the task.",
-    icon: "↗",
-  },
-  {
-    title: "Resources & knowledge",
-    description:
-      "Make documents, learning materials, links, and shared references easy to find.",
-    icon: "▤",
-  },
-  {
-    title: "Progress & reporting",
-    description:
-      "Turn activity into a clearer picture of participation, completion, and progress.",
-    icon: "⌁",
-  },
-];
-
-const DEFAULT_STEPS = [
-  {
-    number: "01",
-    title: "Configure your workspace",
-    description:
-      "Set your organization identity, preferences, roles, and the modules you need.",
-  },
-  {
-    number: "02",
-    title: "Bring your people together",
-    description:
-      "Create programs, invite your team, and give each person the right level of access.",
-  },
-  {
-    number: "03",
-    title: "Coordinate and improve",
-    description:
-      "Run activities, share resources, track progress, and refine your workflow over time.",
-  },
-];
-
-function asRecord(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object"
-    ? (value as Record<string, unknown>)
-    : {};
-}
-
-function stringValue(value: unknown, fallback: string): string {
-  return typeof value === "string" && value.trim() ? value.trim() : fallback;
-}
-
-function colorValue(value: unknown, fallback: string): string {
-  if (typeof value !== "string") return fallback;
-  const candidate = value.trim();
-  // Accept CSS hex, rgb/hsl, and named colors; reject arbitrary CSS fragments.
-  if (
-    /^#(?:[\da-f]{3,4}|[\da-f]{6}|[\da-f]{8})$/i.test(candidate) ||
-    /^(?:rgb|rgba|hsl|hsla)\([\d\s.,%+-]+\)$/i.test(candidate) ||
-    /^[a-z]{3,20}$/i.test(candidate)
-  ) {
-    return candidate;
-  }
-  return fallback;
-}
-
-function safeUrl(value: unknown): string | null {
-  if (typeof value !== "string" || !value.trim()) return null;
-  const candidate = value.trim();
-  if (candidate.startsWith("/") && !candidate.startsWith("//")) return candidate;
-  try {
-    const parsed = new URL(candidate);
-    return parsed.protocol === "https:" || parsed.protocol === "http:"
-      ? candidate
-      : null;
-  } catch {
-    return null;
-  }
-}
-
-function safeEmail(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const email = value.trim();
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
-}
-
-function safeArray<T>(
-  value: unknown,
-  fallback: T[],
-  mapper: (item: unknown, index: number) => T | null,
-): T[] {
-  if (!Array.isArray(value)) return fallback;
-  const mapped = value.map(mapper).filter((item): item is T => item !== null);
-  return mapped.length ? mapped : fallback;
-}
-
-async function getPublicStats(): Promise<PublicStats> {
-  const fallback = { programs: 0, mentors: 0, students: 0 };
+async function getStats(): Promise<Stats> {
+  const empty: Stats = { programs: 0, mentors: 0, students: 0, sessions: 0 };
   try {
     await db();
-    const [programs, mentors, students] = await Promise.all([
-      Program.countDocuments({ status: "active" }).catch(() => 0),
-      User.countDocuments({ role: "mentor", status: "active" }).catch(() => 0),
-      User.countDocuments({ role: "student", status: "active" }).catch(() => 0),
+    const [programs, mentors, students, sessions] = await Promise.all([
+      Program.countDocuments({ status: 'active' }),
+      User.countDocuments({ role: 'mentor', status: 'active' }),
+      User.countDocuments({ role: 'student', status: 'active' }),
+      Session.countDocuments({}),
     ]);
-    return {
-      programs: Number.isFinite(programs) ? programs : 0,
-      mentors: Number.isFinite(mentors) ? mentors : 0,
-      students: Number.isFinite(students) ? students : 0,
-    };
+    return { programs, mentors, students, sessions };
   } catch {
-    return fallback;
+    return empty;
   }
 }
 
-async function getSafeSettings(): Promise<AnySettings> {
-  try {
-    const settings = await getSettings();
-    return asRecord(settings) as AnySettings;
-  } catch {
-    return {};
-  }
-}
-
-async function getSafeSession() {
-  try {
-    return await auth();
-  } catch {
-    return null;
-  }
-}
-
-function Stat({
-  value,
-  label,
-}: {
-  value: number;
-  label: string;
-}) {
-  return (
-    <div className="min-w-0 px-3 py-4 sm:px-6">
-      <div className="text-3xl font-semibold tracking-tight sm:text-4xl">
-        {value.toLocaleString()}
-      </div>
-      <div className="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-[var(--muted)]">
-        {label}
-      </div>
-    </div>
-  );
-}
-
-function BrandMark({ name }: { name: string }) {
-  const initials = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--primary)] text-sm font-bold text-[var(--primary-fg)] shadow-sm"
-    >
-      {initials || "O"}
-    </span>
-  );
-}
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default async function LandingPage() {
-  // Each dependency is isolated: a settings or auth outage should not take down
-  // the public landing page.
-  const [settings, session, stats] = await Promise.all([
-    getSafeSettings(),
-    getSafeSession(),
-    getPublicStats(),
+  const [settings, sessionRaw, stats] = await Promise.all([
+    getSettings(),
+    auth(),
+    getStats(),
   ]);
 
-  const theme = asRecord(settings.theme);
-  const branding = asRecord(settings.branding);
-  const landing = asRecord(settings.landingPage ?? settings.landing);
-  const featureSettings = landing.features ?? settings.features;
-  const stepSettings = landing.steps ?? settings.steps;
-
-  const orgName = stringValue(
-    settings.orgName ?? branding.orgName ?? settings.organizationName,
-    DEFAULTS.orgName,
-  );
-  const logo = safeUrl(settings.logo ?? branding.logoUrl ?? settings.logoUrl);
-  const email = safeEmail(settings.contactEmail ?? settings.email);
-  const supportUrl = safeUrl(settings.supportUrl ?? settings.helpUrl);
-
-  const colors = {
-    primary: colorValue(theme.primary ?? theme.primaryColor ?? settings.primaryColor, DEFAULTS.primary),
-    primaryFg: colorValue(theme.primaryForeground ?? theme.primaryTextColor, DEFAULTS.primaryForeground),
-    accent: colorValue(theme.accent ?? theme.accentColor ?? settings.accentColor, DEFAULTS.accent),
-    page: colorValue(theme.background ?? theme.backgroundColor ?? settings.backgroundColor, DEFAULTS.page),
-    surface: colorValue(theme.surface ?? theme.surfaceColor, DEFAULTS.surface),
-    text: colorValue(theme.text ?? theme.textColor ?? settings.textColor, DEFAULTS.text),
-    muted: colorValue(theme.muted ?? theme.mutedColor, DEFAULTS.muted),
-    border: colorValue(theme.border ?? theme.borderColor, DEFAULTS.border),
-  };
-
-  const title = stringValue(landing.heroTitle ?? landing.title ?? settings.heroTitle, DEFAULTS.heroTitle);
-  const heroDescription = stringValue(
-    landing.heroDescription ?? landing.description ?? settings.heroDescription,
-    DEFAULTS.heroDescription,
-  );
-  const eyebrow = stringValue(landing.eyebrow ?? settings.tagline, DEFAULTS.eyebrow);
-  const featuresTitle = stringValue(landing.featuresTitle, DEFAULTS.featuresTitle);
-  const featuresDescription = stringValue(landing.featuresDescription, DEFAULTS.featuresDescription);
-  const stepsTitle = stringValue(landing.stepsTitle, DEFAULTS.stepsTitle);
-  const ctaTitle = stringValue(landing.ctaTitle, DEFAULTS.ctaTitle);
-  const ctaDescription = stringValue(landing.ctaDescription, DEFAULTS.ctaDescription);
-  const footerText = stringValue(settings.footerText ?? landing.footerText, DEFAULTS.footerText);
-
-  const features = safeArray(
-    featureSettings,
-    DEFAULT_FEATURES,
-    (item) => {
-      const feature = asRecord(item);
-      const featureTitle = stringValue(feature.title ?? feature.name, "");
-      if (!featureTitle) return null;
-      return {
-        title: featureTitle,
-        description: stringValue(feature.description, "Explore this capability in your workspace."),
-        icon: stringValue(feature.icon, "✳"),
-      };
-    },
-  );
-  const steps = safeArray(
-    stepSettings,
-    DEFAULT_STEPS,
-    (item, index) => {
-      const step = asRecord(item);
-      const stepTitle = stringValue(step.title ?? step.name, "");
-      if (!stepTitle) return null;
-      return {
-        number: stringValue(step.number, String(index + 1).padStart(2, "0")),
-        title: stepTitle,
-        description: stringValue(step.description, "Follow this step to keep your organization moving."),
-      };
-    },
-  );
-
-  const isLoggedIn = Boolean(session?.user);
-  const dashboardHref = safeUrl(settings.dashboardUrl) ?? "/dashboard";
-  const loginHref = safeUrl(settings.loginUrl) ?? "/login";
-  const primaryHref = isLoggedIn ? dashboardHref : loginHref;
-  const primaryLabel = isLoggedIn
-    ? stringValue(landing.dashboardLabel, DEFAULTS.dashboardLabel)
-    : stringValue(landing.signInLabel, DEFAULTS.signInLabel);
+  const session = sessionRaw as { user?: { name?: string } } | null;
+  const isLoggedIn = !!session?.user;
   const year = new Date().getFullYear();
+  const ctaHref = isLoggedIn ? '/dashboard' : '/login';
+  const ctaLabel = isLoggedIn ? 'Open dashboard' : 'Sign in';
   const showStats = stats.programs + stats.mentors + stats.students > 0;
-  const style = {
-    "--primary": colors.primary,
-    "--primary-fg": colors.primaryFg,
-    "--accent": colors.accent,
-    "--page": colors.page,
-    "--surface": colors.surface,
-    "--text": colors.text,
-    "--muted": colors.muted,
-    "--border": colors.border,
-  } as React.CSSProperties;
 
   return (
-    <main style={style} className="min-h-screen overflow-hidden bg-[var(--page)] text-[var(--text)]">
-      <header className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-xl">
-        <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between gap-4 px-5 sm:px-8">
-          <Link href="/" className="flex min-w-0 items-center gap-3" aria-label={`${orgName} home`}>
-            {logo ? (
-              // Plain img intentionally supports organization-hosted logos without
-              // requiring every customer domain to be added to next.config.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logo} alt={`${orgName} logo`} className="max-h-10 max-w-[180px] object-contain" />
+    <div className="min-h-screen bg-bg text-text">
+      {/* ==================================================================
+          Header
+      ================================================================== */}
+      <header className="sticky top-0 z-30 border-b border-border bg-surface/95 backdrop-blur">
+        <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
+          <Link href="/" className="flex items-center gap-2 min-w-0">
+            {settings.logo ? (
+              <Image
+                src={settings.logo}
+                alt={settings.orgName}
+                width={140}
+                height={28}
+                className="h-7 w-auto object-contain"
+              />
             ) : (
-              <BrandMark name={orgName} />
+              <span className="font-semibold truncate">
+                {settings.orgName}
+              </span>
             )}
-            <span className="truncate text-sm font-semibold tracking-tight sm:text-base">{orgName}</span>
           </Link>
 
-          <nav aria-label="Main navigation" className="hidden items-center gap-7 text-sm md:flex">
-            <a href="#capabilities" className="text-[var(--muted)] transition hover:text-[var(--text)]">Capabilities</a>
-            <a href="#workflow" className="text-[var(--muted)] transition hover:text-[var(--text)]">How it works</a>
-            {email && <a href={`mailto:${email}`} className="text-[var(--muted)] transition hover:text-[var(--text)]">Contact</a>}
+          <nav className="hidden md:flex items-center gap-6 text-sm">
+            <a
+              href="#features"
+              className="text-muted hover:text-text transition"
+            >
+              Features
+            </a>
+            <a
+              href="#how"
+              className="text-muted hover:text-text transition"
+            >
+              How it works
+            </a>
+            {settings.contactEmail && (
+              <a
+                href={`mailto:${settings.contactEmail}`}
+                className="text-muted hover:text-text transition"
+              >
+                Contact
+              </a>
+            )}
           </nav>
 
-          <Link
-            href={primaryHref}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-[var(--primary)] px-4 py-2.5 text-sm font-semibold text-[var(--primary-fg)] shadow-sm transition hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-[var(--primary)] focus:ring-offset-2"
-          >
-            {primaryLabel}
-            <span aria-hidden="true">↗</span>
+          <Link href={ctaHref} className="btn-primary text-sm shrink-0">
+            {ctaLabel}
           </Link>
         </div>
       </header>
 
-      <section className="relative isolate">
-        <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
-          <div className="absolute -right-24 -top-28 h-96 w-96 rounded-full opacity-20 blur-3xl" style={{ background: colors.accent }} />
-          <div className="absolute -left-28 top-40 h-80 w-80 rounded-full opacity-10 blur-3xl" style={{ background: colors.primary }} />
-          <div className="absolute inset-0 opacity-[0.035]" style={{ backgroundImage: "linear-gradient(var(--text) 1px, transparent 1px), linear-gradient(90deg, var(--text) 1px, transparent 1px)", backgroundSize: "44px 44px" }} />
-        </div>
+      {/* ==================================================================
+          Hero
+      ================================================================== */}
+      <section className="max-w-6xl mx-auto px-4 pt-16 pb-20 sm:pt-24 sm:pb-24">
+        <div className="max-w-3xl">
+          <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-surface text-xs text-muted">
+            <span className="w-1.5 h-1.5 rounded-full bg-success" />
+            Learning Management System
+          </span>
 
-        <div className="mx-auto grid max-w-7xl items-center gap-14 px-5 py-20 sm:px-8 sm:py-28 lg:grid-cols-[1.08fr_.92fr] lg:gap-16 lg:py-32">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--border)] bg-[var(--surface)] px-3.5 py-2 text-xs font-semibold tracking-[0.12em] text-[var(--muted)] shadow-sm">
-              <span className="h-2 w-2 rounded-full" style={{ background: colors.accent }} />
-              {eyebrow}
-            </div>
-            <h1 className="mt-7 max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.045em] sm:text-5xl lg:text-6xl">
-              {title}
-            </h1>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--muted)] sm:text-lg">
-              {heroDescription}
-            </p>
-            <div className="mt-9 flex flex-wrap items-center gap-3">
-              <Link href={primaryHref} className="inline-flex items-center gap-3 rounded-xl bg-[var(--primary)] px-5 py-3.5 text-sm font-semibold text-[var(--primary-fg)] shadow-lg shadow-black/10 transition hover:-translate-y-0.5 hover:opacity-90">
-                {primaryLabel}
-                <span aria-hidden="true">→</span>
-              </Link>
-              <a href="#capabilities" className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-3.5 text-sm font-semibold transition hover:border-[var(--primary)]">
-                Explore the platform
-              </a>
-            </div>
-            <p className="mt-5 text-xs leading-6 text-[var(--muted)]">
-              Access is managed by your organization administrator.
-            </p>
+          <h1 className="mt-6 text-4xl sm:text-5xl lg:text-6xl font-bold leading-[1.1] tracking-tight">
+            Teach, learn, and track —
+            <br className="hidden sm:block" />
+            all in one place.
+          </h1>
+
+          <p className="mt-6 text-lg text-muted leading-relaxed max-w-2xl">
+            {settings.orgName} runs every program on a single platform for
+            sessions, assignments, materials, mentor–student conversations,
+            and attendance.
+          </p>
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link href={ctaHref} className="btn-primary">
+              {ctaLabel}
+            </Link>
+            <a href="#features" className="btn-outline">
+              See features
+            </a>
           </div>
 
-          <div className="relative mx-auto w-full max-w-xl">
-            <div className="absolute -inset-4 rounded-[2rem] opacity-20 blur-2xl" style={{ background: `linear-gradient(135deg, ${colors.primary}, ${colors.accent})` }} />
-            <div className="relative overflow-hidden rounded-[1.75rem] border border-[var(--border)] bg-[var(--surface)] p-4 shadow-2xl shadow-slate-900/10 sm:p-6">
-              <div className="flex items-center justify-between border-b border-[var(--border)] pb-4">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--muted)]">Workspace overview</p>
-                  <p className="mt-1 text-lg font-semibold">Your organization, in sync</p>
-                </div>
-                <span className="rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-[var(--muted)]">Overview</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3 py-5">
-                {[
-                  { label: "Programs", value: stats.programs, symbol: "◫" },
-                  { label: "Mentors & team", value: stats.mentors, symbol: "◎" },
-                  { label: "Participants", value: stats.students, symbol: "↗" },
-                  { label: "Connected tools", value: features.length, symbol: "⌘" },
-                ].map((item) => (
-                  <div key={item.label} className="rounded-2xl border border-[var(--border)] bg-[var(--page)] p-4 sm:p-5">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm text-[var(--muted)]">{item.label}</span>
-                      <span className="text-lg" style={{ color: colors.primary }}>{item.symbol}</span>
-                    </div>
-                    <p className="mt-4 text-2xl font-semibold tracking-tight">{item.value.toLocaleString()}</p>
-                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--border)]">
-                      <div className="h-full w-2/3 rounded-full" style={{ background: `linear-gradient(90deg, ${colors.primary}, ${colors.accent})` }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div className="rounded-2xl border border-[var(--border)] p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-xl text-lg" style={{ background: `${colors.accent}20`, color: colors.accent }}>✓</span>
-                    <div>
-                      <p className="text-sm font-semibold">One connected workflow</p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">People, programs, and resources together</p>
-                    </div>
-                  </div>
-                  <span className="text-xs font-semibold" style={{ color: colors.accent }}>READY</span>
-                </div>
-              </div>
-              <p className="px-1 pt-4 text-[11px] leading-5 text-[var(--muted)]">
-                Counts reflect available records. Missing or unavailable database data is safely shown as zero.
-              </p>
-            </div>
-          </div>
+          <p className="mt-5 text-xs text-muted">
+            Accounts are issued by your admin — no self-signup.
+          </p>
         </div>
       </section>
 
+      {/* ==================================================================
+          Stats
+      ================================================================== */}
       {showStats && (
-        <section aria-label="Organization statistics" className="border-y border-[var(--border)] bg-[var(--surface)]">
-          <div className="mx-auto grid max-w-7xl grid-cols-3 divide-x divide-[var(--border)] px-2 py-3 sm:px-8">
+        <section className="border-y border-border bg-surface">
+          <div className="max-w-6xl mx-auto px-4 py-10 grid grid-cols-2 sm:grid-cols-4 gap-6">
             <Stat value={stats.programs} label="Active programs" />
             <Stat value={stats.mentors} label="Mentors" />
-            <Stat value={stats.students} label="Participants" />
+            <Stat value={stats.students} label="Students" />
+            <Stat value={stats.sessions} label="Sessions" />
           </div>
         </section>
       )}
 
-      <section id="capabilities" className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
-        <div className="flex flex-col justify-between gap-5 md:flex-row md:items-end">
-          <div className="max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: colors.primary }}>Designed to work together</p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{featuresTitle}</h2>
-          </div>
-          <p className="max-w-xl text-sm leading-7 text-[var(--muted)] sm:text-base">{featuresDescription}</p>
+      {/* ==================================================================
+          Features
+      ================================================================== */}
+      <section id="features" className="max-w-6xl mx-auto px-4 py-20">
+        <div className="max-w-2xl">
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            Everything your program needs
+          </h2>
+          <p className="mt-3 text-muted leading-relaxed">
+            Built around how mentors actually run sessions and how students
+            actually learn — not a generic workspace bolted onto a spreadsheet.
+          </p>
         </div>
 
-        <div className="mt-11 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature, index) => (
-            <article key={`${feature.title}-${index}`} className="group rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-6 transition duration-200 hover:-translate-y-1 hover:shadow-xl hover:shadow-slate-900/5">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl text-lg font-semibold" style={{ color: colors.primary, background: `${colors.primary}14` }}>
-                {feature.icon}
+        <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {FEATURES.map((f) => (
+            <div
+              key={f.title}
+              className="card hover:border-primary transition"
+            >
+              <div className="w-10 h-10 rounded-md bg-bg border border-border flex items-center justify-center text-primary mb-3">
+                {f.icon}
               </div>
-              <h3 className="mt-5 text-base font-semibold tracking-tight">{feature.title}</h3>
-              <p className="mt-2 text-sm leading-7 text-[var(--muted)]">{feature.description}</p>
-              <div className="mt-5 h-px w-10 transition-all group-hover:w-16" style={{ background: colors.accent }} />
-            </article>
+              <h3 className="font-medium">{f.title}</h3>
+              <p className="mt-1.5 text-sm text-muted leading-relaxed">
+                {f.description}
+              </p>
+            </div>
           ))}
         </div>
       </section>
 
-      <section id="workflow" className="border-y border-[var(--border)] bg-[var(--surface)]">
-        <div className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-24">
+      {/* ==================================================================
+          How it works — one card per role
+      ================================================================== */}
+      <section id="how" className="border-t border-border bg-surface">
+        <div className="max-w-6xl mx-auto px-4 py-20">
           <div className="max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: colors.primary }}>A simple operating model</p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{stepsTitle}</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">
+              Built for three roles
+            </h2>
+            <p className="mt-3 text-muted leading-relaxed">
+              Admins set it up. Mentors run it. Students learn in it. Everyone
+              sees exactly what they need.
+            </p>
           </div>
-          <ol className="mt-11 grid gap-8 md:grid-cols-3">
-            {steps.map((step, index) => (
-              <li key={`${step.title}-${index}`} className="relative border-t-2 pt-5" style={{ borderTopColor: colors.primary }}>
-                <span className="text-xs font-bold tracking-[0.16em]" style={{ color: colors.primary }}>{step.number}</span>
-                <h3 className="mt-4 text-lg font-semibold">{step.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted)]">{step.description}</p>
-              </li>
+
+          <div className="mt-10 grid md:grid-cols-3 gap-4">
+            {ROLES.map((r) => (
+              <div key={r.role} className="card space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-md bg-primary text-primary-fg flex items-center justify-center text-xs font-semibold">
+                    {r.role[0].toUpperCase()}
+                  </div>
+                  <h3 className="font-semibold">{r.label}</h3>
+                </div>
+                <ul className="space-y-2.5 text-sm text-muted">
+                  {r.bullets.map((b) => (
+                    <li key={b} className="flex gap-2">
+                      <span className="text-primary mt-1 shrink-0">
+                        <CheckIcon />
+                      </span>
+                      <span>{b}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ol>
-        </div>
-      </section>
-
-      <section className="mx-auto max-w-7xl px-5 py-20 sm:px-8 sm:py-28">
-        <div className="relative overflow-hidden rounded-[2rem] bg-[var(--primary)] px-6 py-12 text-center text-[var(--primary-fg)] sm:px-12 sm:py-16">
-          <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-24 h-64 w-64 rounded-full border opacity-20" style={{ borderColor: colors.primaryFg }} />
-          <div aria-hidden="true" className="pointer-events-none absolute -bottom-32 -left-10 h-72 w-72 rounded-full border opacity-20" style={{ borderColor: colors.primaryFg }} />
-          <div className="relative mx-auto max-w-2xl">
-            <p className="text-xs font-bold uppercase tracking-[0.18em] opacity-75">{orgName}</p>
-            <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] sm:text-4xl">{ctaTitle}</h2>
-            <p className="mx-auto mt-4 max-w-xl text-sm leading-7 opacity-80 sm:text-base">{ctaDescription}</p>
-            <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link href={primaryHref} className="rounded-xl bg-white px-5 py-3.5 text-sm font-semibold shadow-sm transition hover:-translate-y-0.5" style={{ color: colors.primary }}>
-                {primaryLabel} <span aria-hidden="true">→</span>
-              </Link>
-              {email && (
-                <a href={`mailto:${email}`} className="rounded-xl border px-5 py-3.5 text-sm font-semibold transition hover:bg-white/10" style={{ borderColor: `${colors.primaryFg}66` }}>
-                  Contact your team
-                </a>
-              )}
-            </div>
           </div>
         </div>
       </section>
 
-      <footer className="border-t border-[var(--border)] bg-[var(--surface)]">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-8 text-sm sm:px-8 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            {logo ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logo} alt="" className="max-h-8 max-w-28 object-contain" />
-            ) : (
-              <BrandMark name={orgName} />
+      {/* ==================================================================
+          CTA
+      ================================================================== */}
+      <section className="max-w-6xl mx-auto px-4 py-20">
+        <div className="card p-8 sm:p-12 text-center space-y-4">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
+            Ready to get started?
+          </h2>
+          <p className="text-muted max-w-xl mx-auto">
+            Sign in with the credentials your admin provided, or reach out to
+            get set up.
+          </p>
+          <div className="flex flex-wrap justify-center gap-3 pt-2">
+            <Link href={ctaHref} className="btn-primary">
+              {ctaLabel}
+            </Link>
+            {settings.contactEmail && (
+              <a
+                href={`mailto:${settings.contactEmail}`}
+                className="btn-outline"
+              >
+                Contact us
+              </a>
             )}
-            <div>
-              <p className="font-semibold">{orgName}</p>
-              <p className="mt-1 text-xs text-[var(--muted)]">{footerText}</p>
-            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-[var(--muted)]">
-            {email && <a href={`mailto:${email}`} className="transition hover:text-[var(--text)]">{email}</a>}
-            {supportUrl && <a href={supportUrl} target="_blank" rel="noopener noreferrer" className="transition hover:text-[var(--text)]">Help & support ↗</a>}
-            <Link href={loginHref} className="transition hover:text-[var(--text)]">Sign in</Link>
+        </div>
+      </section>
+
+      {/* ==================================================================
+          Footer
+      ================================================================== */}
+      <footer className="border-t border-border bg-surface">
+        <div className="max-w-6xl mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-muted">
+          <p>
+            © {year} {settings.orgName}. All rights reserved.
+          </p>
+          <div className="flex items-center gap-4">
+            {settings.contactEmail && (
+              <a
+                href={`mailto:${settings.contactEmail}`}
+                className="hover:text-text transition"
+              >
+                {settings.contactEmail}
+              </a>
+            )}
+            {settings.supportUrl && (
+              <a
+                href={settings.supportUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-text transition"
+              >
+                Support
+              </a>
+            )}
+            <Link href="/login" className="hover:text-text transition">
+              Sign in
+            </Link>
           </div>
-          <p className="text-xs text-[var(--muted)]">© {year} {orgName}. All rights reserved.</p>
         </div>
       </footer>
-    </main>
+    </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function Stat({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="text-center">
+      <p className="text-3xl sm:text-4xl font-bold tabular-nums">
+        {value.toLocaleString()}
+      </p>
+      <p className="mt-1.5 text-xs uppercase tracking-wide text-muted">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Static content
+// ---------------------------------------------------------------------------
+
+const FEATURES: {
+  title: string;
+  description: string;
+  icon: React.ReactNode;
+}[] = [
+  {
+    title: 'Sessions & recordings',
+    description:
+      'Schedule sessions with agendas and meeting links. Attach YouTube recordings students can revisit any time.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" />
+        <path d="M16 2v4M8 2v4M3 10h18" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Assignments & grading',
+    description:
+      'Create assignments with deadlines and reference files. Students submit, mentors grade with marks and feedback.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+        <path d="M9 12h6M9 16h6" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Materials & slides',
+    description:
+      'Upload PDFs, slides, and links to any session. Students download or open them directly in the browser.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+        <path d="M14 2v6h6M9 13h6M9 17h6" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Mentor–student queries',
+    description:
+      'Threaded Q&A tied to sessions or programs. First mentor to reply becomes the assigned mentor for that thread.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Attendance tracking',
+    description:
+      'Mark students present, absent, late, or excused per session. Students see their own rate and history.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9 11l3 3L22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Notifications & reminders',
+    description:
+      'In-app bell plus email alerts for new assignments, graded work, query replies, and upcoming deadlines.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+        <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Programs & cohorts',
+    description:
+      'Organize students and mentors into programs. Sessions, assignments, and threads stay scoped per program.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2 7l10-5 10 5-10 5L2 7z" />
+        <path d="M6 9v6c0 1.5 2.7 3 6 3s6-1.5 6-3V9" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Bulk user import',
+    description:
+      'Onboard hundreds of students and mentors at once from a CSV. Auto-assigns them to programs and emails credentials.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+        <polyline points="17 8 12 3 7 8" />
+        <line x1="12" y1="3" x2="12" y2="15" />
+      </svg>
+    ),
+  },
+  {
+    title: 'Custom branding',
+    description:
+      'Admins change logo, colors, and typography from settings. Every page updates instantly — no rebuild needed.',
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24" />
+      </svg>
+    ),
+  },
+];
+
+const ROLES: {
+  role: 'admin' | 'mentor' | 'student';
+  label: string;
+  bullets: string[];
+}[] = [
+  {
+    role: 'admin',
+    label: 'Admin',
+    bullets: [
+      'Create programs and enroll members',
+      'Import users in bulk from CSV',
+      'Customize branding and theme',
+      'See everything across the org',
+    ],
+  },
+  {
+    role: 'mentor',
+    label: 'Mentor',
+    bullets: [
+      'Schedule sessions and share materials',
+      'Create assignments with deadlines',
+      'Grade submissions with feedback',
+      'Answer student questions in threads',
+    ],
+  },
+  {
+    role: 'student',
+    label: 'Student',
+    bullets: [
+      'Join sessions and rewatch recordings',
+      'Submit assignments and see grades',
+      'Ask mentors questions any time',
+      'Track your own attendance rate',
+    ],
+  },
+];

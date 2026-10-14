@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
-import { getServerSession } from 'next-auth';
-import { authOptions } from './auth';
-import type { Role } from '@/models/User';
+import { auth } from './auth';
+import type { Role } from '@/lib/constants';
 
 export type SessionUser = {
   id: string;
@@ -12,9 +11,9 @@ export type SessionUser = {
 };
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
-  const session = await getServerSession(authOptions);
+  const session = (await auth()) as { user?: SessionUser } | null;
   if (!session?.user) return null;
-  return session.user as SessionUser;
+  return session.user;
 }
 
 export async function requireAuth(): Promise<SessionUser> {
