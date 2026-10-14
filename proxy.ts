@@ -36,10 +36,9 @@ export default withAuth(
   }
 );
 
-export function proxy(request: any) {
-  // This is a workaround for Vercel's requirement
-  // The actual middleware is handled by the default export above
-  return new Response('OK', { status: 200 });
+// Named export to satisfy Vercel's requirement, but not used
+export function proxy() {
+  throw new Error('This function should not be called');
 }
 
 export const config = {
