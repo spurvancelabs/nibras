@@ -9,9 +9,11 @@ import { getStudentAttendanceSummary } from '@/lib/attendance';
 import Avatar from '@/components/Avatar';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
     weekday: 'short',
     month: 'short',
     day: 'numeric',

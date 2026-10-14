@@ -1,4 +1,5 @@
 import NextAuth, { DefaultSession } from 'next-auth';
+import { getServerSession } from 'next-auth/next';
 import Credentials from 'next-auth/providers/credentials';
 import bcrypt from 'bcryptjs';
 import { z } from 'zod';
@@ -91,5 +92,7 @@ export const authOptions = {
     },
   },
 };
+
+export const auth = () => getServerSession(authOptions);
 
 export default NextAuth(authOptions);

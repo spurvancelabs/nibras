@@ -94,12 +94,20 @@ type Props = {
   role: Role;
   orgName: string;
   logo: string;
-  open: boolean;
+  open: boolean;              // mobile drawer
+  desktopVisible: boolean;    // desktop sidebar
   onClose: () => void;
 };
 
-export default function Sidebar({ role, orgName, logo, open, onClose }: Props) {
-  const pathname = usePathname();
+export default function Sidebar({
+  role,
+  orgName,
+  logo,
+  open,
+  desktopVisible,
+  onClose,
+}: Props) {
+    const pathname = usePathname();
   const items = NAV.filter((n) => n.roles.includes(role));
 
   return (
@@ -118,7 +126,8 @@ export default function Sidebar({ role, orgName, logo, open, onClose }: Props) {
           bg-surface border-r border-border
           transition-transform duration-200
           md:static md:translate-x-0
-          ${open ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          ${open ? 'translate-x-0' : '-translate-x-full'}
+          ${desktopVisible ? '' : 'md:hidden'}
         `}
       >
         <div className="h-14 flex items-center gap-2 px-4 border-b border-border shrink-0">

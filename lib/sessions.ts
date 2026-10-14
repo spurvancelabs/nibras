@@ -40,6 +40,18 @@ type LeanPopulated = {
   createdAt: Date;
 };
 
+function effectiveStatus(
+  status: SessionStatus,
+  startsAt: Date,
+  endsAt: Date
+): SessionStatus {
+  // Respect explicit non-scheduled states
+  if (status !== 'scheduled') return status;
+  // Past session with no explicit status → completed
+  if (endsAt.getTime() < Date.now()) return 'completed';
+  return 'scheduled';
+}
+
 function mapRow(r: LeanPopulated): SessionListItem {
   return {
     id: String(r._id),
@@ -54,7 +66,11 @@ function mapRow(r: LeanPopulated): SessionListItem {
     endsAt: new Date(r.endsAt).toISOString(),
     meetingUrl: r.meetingUrl ?? '',
     recordingUrl: r.recordingUrl ?? '',
-    status: r.status,
+    status: effectiveStatus(
+      r.status,
+      new Date(r.startsAt),
+      new Date(r.endsAt)
+    ),
     createdAt: new Date(r.createdAt).toISOString(),
   };
 }

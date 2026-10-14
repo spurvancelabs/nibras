@@ -18,6 +18,7 @@ const upsertSchema = z
   .object({
     id: z.string().optional(),
     programId: z.string().min(1),
+    mentorId: z.string().optional(), // required for admins, ignored for mentors
     title: z.string().min(1).max(200),
     agenda: z.string().max(4000).optional().default(''),
     startsAt: z.string().min(1),
@@ -98,12 +99,26 @@ export async function saveSessionAction(raw: unknown): Promise<ActionResult> {
     return { ok: true, id: data.id };
   }
 
+  // Admins can pick any mentor. Mentors are always themselves.
+  let mentorIdForCreate = user.id;
+  if (user.role === 'admin') {
+    if (!data.mentorId) {
+      return { ok: false, error: 'Choose a mentor for this session' };
+    }
+    // Verify the chosen mentor actually mentors this program
+    const isMentor = (program.mentors ?? []).map(String).includes(data.mentorId);
+    if (!isMentor) {
+      return { ok: false, error: 'Chosen mentor is not in this program' };
+    }
+    mentorIdForCreate = data.mentorId;
+  }
+
   const res = await createSession({
     orgId: user.orgId,
     programId: data.programId,
     title: data.title,
     agenda: data.agenda,
-    mentorId: user.id, // creator is the mentor for now
+    mentorId: mentorIdForCreate,
     startsAt: data.startsAt,
     endsAt: data.endsAt,
     meetingUrl: data.meetingUrl,

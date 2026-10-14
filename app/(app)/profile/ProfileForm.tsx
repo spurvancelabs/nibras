@@ -11,18 +11,33 @@ export default function ProfileForm({ user }: { user: UserListItem }) {
   const router = useRouter();
   const [name, setName] = useState(user.name);
   const [avatar, setAvatar] = useState(user.avatar);
-  const [password, setPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
+
+    if (newPassword !== confirmPassword) {
+      setMsg({ kind: 'err', text: 'Passwords do not match' });
+      return;
+    }
+
     start(async () => {
-      const res = await saveProfileAction({ name, avatar, password });
+      const res = await saveProfileAction({
+        name,
+        avatar,
+        currentPassword,
+        newPassword,
+      });
       if (res.ok) {
         setMsg({ kind: 'ok', text: 'Profile updated.' });
-        setPassword('');
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
         router.refresh();
       } else {
         setMsg({ kind: 'err', text: res.error });
@@ -79,17 +94,51 @@ export default function ProfileForm({ user }: { user: UserListItem }) {
         <input className="input" value={user.role} disabled />
       </div>
 
-      <div>
-        <label className="label">New password</label>
-        <input
-          className="input"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="Leave blank to keep current"
-          minLength={6}
-          autoComplete="new-password"
-        />
+      <div className="space-y-3">
+        <p className="text-xs text-muted uppercase tracking-wide">
+          Change password
+        </p>
+
+        <div>
+          <label className="label">Current password</label>
+          <input
+            className="input"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            autoComplete="current-password"
+            placeholder="Required to change password"
+          />
+        </div>
+
+        <div className="grid sm:grid-cols-2 gap-3">
+          <div>
+            <label className="label">New password</label>
+            <input
+              className="input"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              autoComplete="new-password"
+              minLength={6}
+              placeholder="min 6 characters"
+            />
+          </div>
+          <div>
+            <label className="label">Confirm new password</label>
+            <input
+              className="input"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+          </div>
+        </div>
+
+        {newPassword && confirmPassword && newPassword !== confirmPassword && (
+          <p className="text-xs text-danger">Passwords do not match</p>
+        )}
       </div>
 
       <div className="flex justify-end">

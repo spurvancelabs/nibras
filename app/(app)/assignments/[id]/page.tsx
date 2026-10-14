@@ -21,6 +21,7 @@ export const dynamic = 'force-dynamic';
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
     weekday: 'short',
     month: 'short',
     day: 'numeric',

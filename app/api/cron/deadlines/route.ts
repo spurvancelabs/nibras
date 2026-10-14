@@ -57,6 +57,7 @@ export async function GET(req: Request) {
     if (pendingIds.length === 0) continue;
 
     const dueLabel = new Date(a.dueAt).toLocaleString(undefined, {
+      year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: 'numeric',

@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 function fmtDate(iso: string) {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',

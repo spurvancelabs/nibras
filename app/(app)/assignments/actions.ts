@@ -134,6 +134,7 @@ export async function saveAssignmentAction(raw: unknown): Promise<ActionResult> 
   const studentIds = (program?.students ?? []).map(String);
   if (studentIds.length > 0) {
     const dueLabel = new Date(data.dueAt).toLocaleString(undefined, {
+      year: 'numeric',
       month: 'short',
       day: 'numeric',
       hour: 'numeric',

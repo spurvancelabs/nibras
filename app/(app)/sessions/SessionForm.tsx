@@ -10,6 +10,8 @@ type ProgramOption = { id: string; name: string };
 
 type Props = {
   programs: ProgramOption[];
+  mentors?: { id: string; name: string }[];
+  viewerRole: 'admin' | 'mentor';
   initial?: SessionListItem;
   canDelete?: boolean;
 };
@@ -28,7 +30,7 @@ function localToIso(local: string): string {
   return new Date(local).toISOString();
 }
 
-export default function SessionForm({ programs, initial, canDelete }: Props) {
+export default function SessionForm({ programs, mentors, viewerRole, initial, canDelete }: Props) {
   const router = useRouter();
 
   const [form, setForm] = useState({
@@ -42,6 +44,8 @@ export default function SessionForm({ programs, initial, canDelete }: Props) {
     status: initial?.status ?? 'scheduled',
   });
 
+  const [mentorId, setMentorId] = useState('');
+
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -53,6 +57,7 @@ export default function SessionForm({ programs, initial, canDelete }: Props) {
       const res = await saveSessionAction({
         id: initial?.id,
         programId: form.programId,
+        mentorId,
         title: form.title,
         agenda: form.agenda,
         startsAt: localToIso(form.startsAt),
@@ -88,6 +93,26 @@ export default function SessionForm({ programs, initial, canDelete }: Props) {
       {error && (
         <div className="text-sm px-3 py-2 rounded-md border bg-red-50 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-800">
           {error}
+        </div>
+      )}
+
+      {viewerRole === 'admin' && !initial && (
+        <div>
+          <label className="label">Mentor</label>
+          <select
+            className="input"
+            value={mentorId}
+            onChange={(e) => setMentorId(e.target.value)}
+            required
+          >
+            <option value="" disabled>Select a mentor…</option>
+            {(mentors ?? []).map((m) => (
+              <option key={m.id} value={m.id}>{m.name}</option>
+            ))}
+          </select>
+          <p className="text-xs text-muted mt-1">
+            Only mentors of the selected program appear here.
+          </p>
         </div>
       )}
 

@@ -10,6 +10,7 @@ import {
 import { youtubeId } from '@/lib/youtube';
 import Avatar from '@/components/Avatar';
 import Program from '@/models/Program';
+import User from '@/models/User';
 import { db } from '@/lib/db';
 import SessionForm from '../SessionForm';
 import MaterialsPanel from './MaterialsPanel';
@@ -55,6 +56,7 @@ export default async function SessionPage({
   const end = new Date(session.endsAt);
   const fmt = (d: Date) =>
     d.toLocaleString(undefined, {
+      year: 'numeric',
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -65,6 +67,7 @@ export default async function SessionPage({
   const ytId = youtubeId(session.recordingUrl);
 
   let programOptions: { id: string; name: string }[] = [];
+  let mentors: { id: string; name: string }[] = [];
   if (canManage) {
     await db();
     const query: Record<string, unknown> = { orgId: user.orgId };
@@ -73,6 +76,16 @@ export default async function SessionPage({
     programOptions = rows.map((p) => ({
       id: String(p._id),
       name: p.name as string,
+    }));
+
+    // Load mentors for the form
+    const mentorRows = await User.find({
+      orgId: user.orgId,
+      role: 'mentor',
+    }).select('_id name').lean();
+    mentors = mentorRows.map((m) => ({
+      id: String(m._id),
+      name: m.name as string,
     }));
   }
 
@@ -180,6 +193,8 @@ export default async function SessionPage({
           </h2>
           <SessionForm
             programs={programOptions}
+            mentors={mentors}
+            viewerRole={user.role === 'admin' ? 'admin' : 'mentor'}
             initial={session}
             canDelete
           />

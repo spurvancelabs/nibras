@@ -15,6 +15,7 @@ type Props = {
 
 function fmt(iso: string) {
   return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
