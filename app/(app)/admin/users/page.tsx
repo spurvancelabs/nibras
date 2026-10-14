@@ -24,11 +24,10 @@ export default async function UsersPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold">Users</h1>
-          <p className="text-sm text-muted">{users.length} total</p>
-        </div>
+      <div className="flex gap-2">
+        <Link href="/admin/users/import" className="btn-outline">
+          Import CSV
+        </Link>
         <Link href="/admin/users/new" className="btn-primary">
           + New user
         </Link>
