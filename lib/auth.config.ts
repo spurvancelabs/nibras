@@ -1,28 +1,4 @@
 import { NextResponse } from 'next/server';
-import type { Role } from '@/lib/constants';
-
-type AuthorizedParams = {
-  auth: { user?: { id: string; role: Role; orgId: string } } | null;
-  request: { nextUrl: URL };
-};
-
-type JwtParams = {
-  token: Record<string, unknown>;
-  user?: { id?: string; role?: Role; orgId?: string };
-};
-
-type SessionParams = {
-  session: {
-    user?: {
-      id: string;
-      role: Role;
-      orgId: string;
-      name?: string | null;
-      email?: string | null;
-    };
-  } & Record<string, unknown>;
-  token: Record<string, unknown>;
-};
 
 export const authConfig = {
   session: { strategy: 'jwt' as const },
@@ -30,7 +6,7 @@ export const authConfig = {
   providers: [],
 
   callbacks: {
-    authorized({ auth, request }: AuthorizedParams) {
+    authorized({ auth, request }: { auth: any; request: any }) {
       const isLoggedIn = !!auth?.user;
       const path = request.nextUrl.pathname;
       const isAuthPage = path.startsWith('/login');
@@ -46,20 +22,20 @@ export const authConfig = {
       return isLoggedIn;
     },
 
-    jwt({ token, user }: JwtParams) {
+    jwt({ token, user }: { token: any; user: any }) {
       if (user) {
-        token.id = user.id ?? '';
-        token.role = user.role ?? 'student';
-        token.orgId = user.orgId ?? '';
+        token.id = user.id;
+        token.role = user.role;
+        token.orgId = user.orgId;
       }
       return token;
     },
 
-    session({ session, token }: SessionParams) {
+    session({ session, token }: { session: any; token: any }) {
       if (session.user) {
-        session.user.id = String(token.id ?? '');
-        session.user.role = (token.role as Role) ?? 'student';
-        session.user.orgId = String(token.orgId ?? '');
+        session.user.id = token.id;
+        session.user.role = token.role;
+        session.user.orgId = token.orgId;
       }
       return session;
     },

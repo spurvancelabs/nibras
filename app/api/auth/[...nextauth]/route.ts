@@ -1,7 +1,6 @@
-import NextAuth from '@/lib/auth';
+import { handlers } from '@/lib/auth';
 
-export const runtime = 'nodejs'; // bcrypt + mongoose need Node
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
-const handler = NextAuth;
-
-export { handler as GET, handler as POST };
+export const { GET, POST } = handlers;
