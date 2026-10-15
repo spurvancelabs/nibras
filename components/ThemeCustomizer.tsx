@@ -14,6 +14,8 @@ const DEFAULT_LIGHT: ThemePalette = {
   success: '#16a34a',
   warning: '#d97706',
   danger: '#dc2626',
+  heroBg: '#eef4ff',
+  accent: '#dbe7fe',
 };
 
 const DEFAULT_DARK: ThemePalette = {
@@ -27,6 +29,8 @@ const DEFAULT_DARK: ThemePalette = {
   success: '#22c55e',
   warning: '#f59e0b',
   danger: '#ef4444',
+  heroBg: '#0f1a2e',
+  accent: '#1e3a5f',
 };
 
 export default function ThemeCustomizer() {
@@ -79,6 +83,8 @@ export default function ThemeCustomizer() {
     { key: 'success', label: 'Success', description: 'Success states and notifications' },
     { key: 'warning', label: 'Warning', description: 'Warning states and alerts' },
     { key: 'danger', label: 'Danger', description: 'Error states and destructive actions' },
+    { key: 'heroBg', label: 'Hero Background', description: 'Hero section and highlight backgrounds' },
+    { key: 'accent', label: 'Accent', description: 'Decorative elements and subtle highlights' },
   ];
 
   return (
