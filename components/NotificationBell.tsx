@@ -1,3 +1,9 @@
+// =============================================================================
+// FILE: components/NotificationBell.tsx
+// Navbar bell + dropdown. Polls /api/notifications every 30s.
+// On phones the panel is full-width under the navbar so it never overflows.
+// =============================================================================
+
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
@@ -54,7 +60,7 @@ export default function NotificationBell() {
     load();
   }, [pathname]);
 
-  // Close on outside click
+  // Close on outside click / Escape
   useEffect(() => {
     if (!open) return;
     function onDoc(e: MouseEvent) {
@@ -62,8 +68,15 @@ export default function NotificationBell() {
         setOpen(false);
       }
     }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDoc);
+      document.removeEventListener('keydown', onKey);
+    };
   }, [open]);
 
   async function markAllRead() {
@@ -101,39 +114,60 @@ export default function NotificationBell() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        aria-label="Notifications"
-        className="btn-outline p-2 relative"
+        aria-label={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+        aria-expanded={open}
+        className={`relative grid place-items-center w-10 h-10 rounded-[var(--radius-md)] border border-border transition ${
+          open ? 'bg-hero text-text' : 'bg-surface text-text hover:bg-hero'
+        }`}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
           <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
         </svg>
         {unread > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-danger text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-danger text-white text-[10px] font-semibold flex items-center justify-center ring-2 ring-surface">
             {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-surface border border-border rounded-lg shadow-lg z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-            <p className="text-sm font-semibold">Notifications</p>
+        <div
+          className="fixed inset-x-3 top-[4.5rem] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-3 sm:w-96 bg-surface border border-border rounded-[var(--radius-lg)] shadow-2xl z-50 overflow-hidden"
+        >
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold">Notifications</p>
+              {unread > 0 && (
+                <span className="px-2 py-0.5 rounded-full bg-primary text-primary-fg text-[10px] font-semibold">
+                  {unread} new
+                </span>
+              )}
+            </div>
             {unread > 0 && (
               <button
                 type="button"
                 onClick={markAllRead}
-                className="text-xs text-muted hover:underline"
+                className="text-xs font-medium text-muted hover:text-text transition"
               >
                 Mark all read
               </button>
             )}
           </div>
 
-          <div className="max-h-[70vh] overflow-y-auto">
+          <div className="max-h-[min(70vh,28rem)] overflow-y-auto overscroll-contain">
             {items.length === 0 ? (
-              <p className="text-sm text-muted p-4">No notifications yet.</p>
+              <div className="px-4 py-10 text-center">
+                <span className="mx-auto mb-3 grid place-items-center w-12 h-12 rounded-full bg-hero text-text">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" />
+                    <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />
+                  </svg>
+                </span>
+                <p className="text-sm font-medium">You&apos;re all caught up</p>
+                <p className="text-xs text-muted mt-1">No notifications yet.</p>
+              </div>
             ) : (
               <ul className="divide-y divide-border">
                 {items.map((n) => {
@@ -143,27 +177,29 @@ export default function NotificationBell() {
                       <button
                         type="button"
                         onClick={() => onItemClick(n)}
-                        className={`w-full text-left p-3 hover:bg-bg transition flex gap-3 ${
-                          unreadItem ? '' : 'opacity-80'
+                        className={`w-full text-left px-4 py-3 transition flex gap-3 ${
+                          unreadItem ? 'bg-hero/50 hover:bg-hero' : 'hover:bg-bg'
                         }`}
                       >
                         <span
                           className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${
-                            unreadItem ? 'bg-primary' : 'bg-transparent'
+                            unreadItem ? 'bg-primary' : 'bg-border'
                           }`}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium truncate">
-                            {n.title}
-                          </p>
+                          <div className="flex items-start justify-between gap-3">
+                            <p className={`text-sm truncate ${unreadItem ? 'font-semibold' : 'font-medium text-muted'}`}>
+                              {n.title}
+                            </p>
+                            <span className="text-[11px] text-muted shrink-0 tabular-nums">
+                              {fmtRelative(n.createdAt)}
+                            </span>
+                          </div>
                           {n.body && (
                             <p className="text-xs text-muted line-clamp-2 mt-0.5">
                               {n.body}
                             </p>
                           )}
-                          <p className="text-[11px] text-muted mt-1">
-                            {fmtRelative(n.createdAt)}
-                          </p>
                         </div>
                       </button>
                     </li>
@@ -173,13 +209,13 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div className="border-t border-border p-2 text-center">
+          <div className="border-t border-border">
             <Link
               href="/notifications"
               onClick={() => setOpen(false)}
-              className="text-xs text-muted hover:underline"
+              className="block py-3 text-center text-xs font-medium text-text hover:bg-hero transition"
             >
-              View all
+              View all notifications
             </Link>
           </div>
         </div>

@@ -1,3 +1,8 @@
+// =============================================================================
+// FILE: components/Avatar.tsx
+// User avatar: photo if `src` is given, otherwise initials on the primary colour.
+// =============================================================================
+
 type Props = {
   name: string;
   src?: string;
@@ -18,23 +23,24 @@ export default function Avatar({ name, src, size = 32, className = '' }: Props) 
   const dim = { width: size, height: size };
 
   if (src) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={src}
         alt={name}
         style={dim}
-        className={`rounded-full object-cover border border-border shrink-0 ${className}`}
+        className={`rounded-full object-cover ring-2 ring-surface shadow-sm shrink-0 ${className}`}
       />
     );
   }
 
   return (
     <div
-      style={dim}
-      className={`rounded-full bg-primary text-primary-fg flex items-center justify-center text-xs font-medium shrink-0 ${className}`}
+      style={{ ...dim, fontSize: Math.max(10, Math.round(size * 0.38)) }}
+      aria-label={name}
+      className={`rounded-full bg-primary text-primary-fg flex items-center justify-center font-semibold tracking-wide ring-2 ring-hero shrink-0 select-none ${className}`}
     >
-      {initials(name)}
+      {initials(name) || '?'}
     </div>
   );
 }
