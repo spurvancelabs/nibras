@@ -2,7 +2,7 @@
 // FILE: components/ui.tsx
 // Small shared UI pieces used by the redesigned pages (server + client safe):
 // PageHeader, Panel, Badge, SessionStatusBadge, Alert, EmptyNote, DateTile,
-// ProgressRing. No hooks, no data fetching.
+// ProgressRing, FileRow/FileList. No hooks, no data fetching.
 // =============================================================================
 
 import Link from 'next/link';
@@ -279,6 +279,57 @@ export function ProgressRing({
     </div>
   );
 }
+
+// ---------------------------------------------------------------------------
+// File row (attachments, submissions, materials)
+// ---------------------------------------------------------------------------
+
+export function formatBytes(n: number) {
+  if (!n) return '';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export function FileRow({
+  name,
+  size,
+  format,
+  children,
+}: {
+  name: string;
+  size?: number;
+  format?: string;
+  children?: React.ReactNode; // actions on the right
+}) {
+  const ext = (format || name.split('.').pop() || '').slice(0, 4).toUpperCase();
+  return (
+    <li className="flex items-center gap-3 px-3 py-2.5">
+      <span className="grid place-items-center w-9 h-9 shrink-0 rounded-[var(--radius-md)] bg-hero text-[10px] font-bold tracking-wide">
+        {ext || 'FILE'}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium truncate">{name}</span>
+        {!!size && <span className="block text-xs text-muted">{formatBytes(size)}</span>}
+      </span>
+      {children && <span className="flex items-center gap-1.5 shrink-0">{children}</span>}
+    </li>
+  );
+}
+
+export function FileList({ children }: { children: React.ReactNode }) {
+  return (
+    <ul className="divide-y divide-border border border-border rounded-[var(--radius-md)] bg-surface overflow-hidden">
+      {children}
+    </ul>
+  );
+}
+
+export const DownloadIcon = (
+  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+  </svg>
+);
 
 // ---------------------------------------------------------------------------
 // Icons used across pages
