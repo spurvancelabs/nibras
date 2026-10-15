@@ -1,7 +1,20 @@
+// =============================================================================
+// FILE: app/layout.tsx
+// Root layout. Reads Settings (MongoDB) and injects the theme as CSS variables:
+//   --color-* (light on :root, dark on .dark), --radius-md/lg, --font-sans
+// and loads the selected Google Font (Poppins by default).
+// =============================================================================
+
 import type { Metadata } from 'next';
 import './globals.css';
 import Providers from '@/components/providers';
-import { DEFAULT_SETTINGS } from '@/models/Setting';
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_LIGHT,
+  DEFAULT_DARK,
+  type ThemePalette,
+} from '@/models/Setting';
+import { googleFontHref } from '@/lib/theme-config';
 
 let getSettings: () => Promise<any>;
 let THEME_SCRIPT = '';
@@ -34,18 +47,29 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-function paletteBlock(selector: string, p: Record<string, string>) {
+// Values are admin-controlled; strip characters that could break out of the <style> block.
+const css = (v: unknown, fallback: string) =>
+  (typeof v === 'string' && v.trim() ? v : fallback).replace(/[<>{};]/g, '');
+
+function paletteBlock(
+  selector: string,
+  p: Partial<ThemePalette> | undefined,
+  d: ThemePalette
+) {
+  const v = p ?? {};
   return `${selector}{
-    --color-primary:${p.primary || '#2563eb'};
-    --color-primary-fg:${p.primaryFg || '#ffffff'};
-    --color-bg:${p.bg || '#f8fafc'};
-    --color-surface:${p.surface || '#ffffff'};
-    --color-border:${p.border || '#e2e8f0'};
-    --color-muted:${p.muted || '#64748b'};
-    --color-text:${p.text || '#0f172a'};
-    --color-success:${p.success || '#16a34a'};
-    --color-warning:${p.warning || '#d97706'};
-    --color-danger:${p.danger || '#dc2626'};
+    --color-primary:${css(v.primary, d.primary)};
+    --color-primary-fg:${css(v.primaryFg, d.primaryFg)};
+    --color-bg:${css(v.bg, d.bg)};
+    --color-surface:${css(v.surface, d.surface)};
+    --color-border:${css(v.border, d.border)};
+    --color-muted:${css(v.muted, d.muted)};
+    --color-text:${css(v.text, d.text)};
+    --color-success:${css(v.success, d.success)};
+    --color-warning:${css(v.warning, d.warning)};
+    --color-danger:${css(v.danger, d.danger)};
+    --color-hero:${css(v.heroBg, d.heroBg)};
+    --color-accent:${css(v.accent, d.accent)};
   }`;
 }
 
@@ -55,27 +79,37 @@ export default async function RootLayout({
   children: React.ReactNode;
 }) {
   let s = DEFAULT_SETTINGS;
-  
+
   try {
     s = await getSettings();
   } catch (error) {
     console.warn('Failed to load settings, using defaults:', error);
   }
 
-  const css = [
-    paletteBlock(':root', s.light),
-    paletteBlock('.dark', s.dark),
+  const themeCss = [
+    paletteBlock(':root', s.light, DEFAULT_LIGHT),
+    paletteBlock('.dark', s.dark, DEFAULT_DARK),
     `:root, .dark {
-      --radius-md:${s.radiusMd || '8px'};
-      --radius-lg:${s.radiusLg || '12px'};
-      --font-sans:${s.font || 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif'};
+      --radius-md:${css(s.radiusMd, DEFAULT_SETTINGS.radiusMd)};
+      --radius-lg:${css(s.radiusLg, DEFAULT_SETTINGS.radiusLg)};
+      --font-sans:${css(s.font, DEFAULT_SETTINGS.font)};
     }`,
   ].join('\n');
 
+  const fontHref = googleFontHref(s.font || DEFAULT_SETTINGS.font);
+
   return (
-    <html lang="en" data-theme-mode={s.themeMode || 'system'} suppressHydrationWarning>
+    <html lang="en" data-theme-mode={s.themeMode || 'light'} suppressHydrationWarning>
       <head>
-        <style dangerouslySetInnerHTML={{ __html: css }} />
+        {fontHref && (
+          <>
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+            {/* eslint-disable-next-line @next/next/no-page-custom-font */}
+            <link rel="stylesheet" href={fontHref} />
+          </>
+        )}
+        <style dangerouslySetInnerHTML={{ __html: themeCss }} />
         {THEME_SCRIPT && <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />}
       </head>
       <body>

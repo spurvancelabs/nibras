@@ -1,8 +1,15 @@
+// =============================================================================
+// FILE: app/(app)/admin/settings/SettingsForm.tsx
+// Admin → Settings form (client). Theme presets, light/dark palettes,
+// typography, landing-page content (hero + Trusted by logos), contact.
+// =============================================================================
+
 'use client';
 
 import { useMemo, useState, useTransition } from 'react';
 import CloudinaryUpload from '@/components/CloudinaryUpload';
 import { saveSettings } from './actions';
+import { FONT_OPTIONS, THEME_PRESETS, type ThemePreset } from '@/lib/theme-config';
 import type {
   ThemeSettings,
   ThemePalette,
@@ -11,22 +18,15 @@ import type {
 
 type Props = { initial: ThemeSettings };
 
-type Tab = 'branding' | 'light' | 'dark' | 'typography' | 'contact';
+type Tab = 'branding' | 'landing' | 'light' | 'dark' | 'typography' | 'contact';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'branding', label: 'Branding' },
+  { id: 'landing', label: 'Landing page' },
   { id: 'light', label: 'Light theme' },
   { id: 'dark', label: 'Dark theme' },
   { id: 'typography', label: 'Typography & Shape' },
   { id: 'contact', label: 'Contact' },
-];
-
-const PRESET_FONTS = [
-  { label: 'System', value: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
-  { label: 'Inter', value: 'Inter, ui-sans-serif, system-ui, sans-serif' },
-  { label: 'Poppins', value: 'Poppins, ui-sans-serif, system-ui, sans-serif' },
-  { label: 'Georgia', value: 'Georgia, Cambria, "Times New Roman", serif' },
-  { label: 'Mono', value: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
 ];
 
 const PALETTE_FIELDS: { key: keyof ThemePalette; label: string }[] = [
@@ -34,6 +34,8 @@ const PALETTE_FIELDS: { key: keyof ThemePalette; label: string }[] = [
   { key: 'primaryFg', label: 'Primary text' },
   { key: 'bg', label: 'Background' },
   { key: 'surface', label: 'Surface' },
+  { key: 'heroBg', label: 'Hero background' },
+  { key: 'accent', label: 'Accent (decor)' },
   { key: 'border', label: 'Border' },
   { key: 'muted', label: 'Muted text' },
   { key: 'text', label: 'Text' },
@@ -41,6 +43,12 @@ const PALETTE_FIELDS: { key: keyof ThemePalette; label: string }[] = [
   { key: 'warning', label: 'Warning' },
   { key: 'danger', label: 'Danger' },
 ];
+
+function samePalette(a: ThemePalette, b: ThemePalette) {
+  return (Object.keys(b) as (keyof ThemePalette)[]).every(
+    (k) => (a[k] ?? '').toLowerCase() === b[k].toLowerCase()
+  );
+}
 
 export default function SettingsForm({ initial }: Props) {
   const [form, setForm] = useState<ThemeSettings>(initial);
@@ -60,10 +68,32 @@ export default function SettingsForm({ initial }: Props) {
     setForm((f) => ({ ...f, [which]: { ...f[which], [key]: value } }));
   }
 
+  function applyPreset(p: ThemePreset) {
+    setForm((f) => ({
+      ...f,
+      light: { ...p.light },
+      dark: { ...p.dark },
+      font: p.font,
+      radiusMd: p.radiusMd,
+      radiusLg: p.radiusLg,
+    }));
+    setMessage({ kind: 'ok', text: `“${p.name}” applied — click Save settings to publish it.` });
+  }
+
+  const activePresetId = useMemo(
+    () =>
+      THEME_PRESETS.find(
+        (p) => samePalette(form.light, p.light) && samePalette(form.dark, p.dark)
+      )?.id ?? null,
+    [form.light, form.dark]
+  );
+
   const previewPalette = useMemo(
     () => (tab === 'dark' ? form.dark : form.light),
     [tab, form.light, form.dark]
   );
+
+  const fontIsPreset = FONT_OPTIONS.some((f) => f.value === form.font);
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,6 +118,44 @@ export default function SettingsForm({ initial }: Props) {
           {message.text}
         </div>
       )}
+
+      {/* Theme presets */}
+      <section className="card space-y-3">
+        <div>
+          <h2 className="font-semibold">Theme presets</h2>
+          <p className="text-xs text-muted">
+            One click fills the light & dark palettes, font and corner radius. You can fine-tune afterwards.
+          </p>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          {THEME_PRESETS.map((p) => {
+            const active = p.id === activePresetId;
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => applyPreset(p)}
+                aria-pressed={active}
+                className={`text-left rounded-lg border p-2 transition ${
+                  active ? 'border-primary ring-2 ring-primary/30' : 'border-border hover:border-primary'
+                }`}
+              >
+                <div className="flex h-12 overflow-hidden rounded-md">
+                  <span className="flex-[3]" style={{ background: p.light.heroBg }} />
+                  <span className="flex-1" style={{ background: p.light.accent }} />
+                  <span className="flex-1" style={{ background: p.light.primary }} />
+                  <span className="flex-1" style={{ background: p.dark.bg }} />
+                </div>
+                <p className="mt-2 text-sm font-medium">
+                  {p.name}
+                  {p.id === 'sunrise' && <span className="ml-1 text-[10px] text-muted">default</span>}
+                </p>
+                <p className="text-[11px] text-muted leading-snug">{p.description}</p>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       {/* Org-wide default theme mode */}
       <section className="card space-y-3">
@@ -160,6 +228,106 @@ export default function SettingsForm({ initial }: Props) {
         </section>
       )}
 
+      {tab === 'landing' && (
+        <section className="card space-y-5">
+          <div>
+            <h2 className="font-semibold">Hero</h2>
+            <p className="text-xs text-muted">Leave empty to use the built-in text.</p>
+          </div>
+          <div>
+            <label className="label">Headline</label>
+            <input
+              className="input"
+              value={form.heroTitle}
+              maxLength={90}
+              onChange={(e) => setField('heroTitle', e.target.value)}
+              placeholder="Teach, learn, and track — all in one place."
+            />
+          </div>
+          <div>
+            <label className="label">Sub-text</label>
+            <textarea
+              className="input min-h-[84px]"
+              value={form.heroSubtitle}
+              maxLength={260}
+              onChange={(e) => setField('heroSubtitle', e.target.value)}
+              placeholder={`${form.orgName} runs every program on a single platform…`}
+            />
+          </div>
+          <div>
+            <label className="label">Hero image</label>
+            <p className="text-xs text-muted mb-2">
+              A cut-out photo (transparent PNG) looks best. Without one, a course preview card is shown.
+            </p>
+            <CloudinaryUpload
+              value={form.heroImage}
+              onChange={(url) => setField('heroImage', url)}
+              label="Upload hero image"
+              accept="image/png,image/webp,image/jpeg"
+            />
+          </div>
+
+          <hr className="border-border" />
+
+          <div>
+            <h2 className="font-semibold">Trusted by</h2>
+            <p className="text-xs text-muted">The section is hidden until at least one logo is added (max 12).</p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Section title</label>
+              <input
+                className="input"
+                value={form.partnersTitle}
+                onChange={(e) => setField('partnersTitle', e.target.value)}
+                placeholder="Trusted by"
+              />
+            </div>
+            <div>
+              <label className="label">Side text</label>
+              <input
+                className="input"
+                value={form.partnersText}
+                onChange={(e) => setField('partnersText', e.target.value)}
+                placeholder="Universities and communities learning with us."
+              />
+            </div>
+          </div>
+
+          {form.partnerLogos.length > 0 && (
+            <ul className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {form.partnerLogos.map((src, i) => (
+                <li key={src + i} className="relative rounded-md border border-border p-3 flex items-center justify-center h-20 bg-surface">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={src} alt="" className="max-h-full max-w-full object-contain" />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setField('partnerLogos', form.partnerLogos.filter((_, j) => j !== i))
+                    }
+                    className="absolute top-1 right-1 w-6 h-6 rounded-full bg-bg border border-border text-xs text-muted hover:text-text"
+                    aria-label="Remove logo"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          {form.partnerLogos.length < 12 && (
+            <CloudinaryUpload
+              key={form.partnerLogos.length}
+              value=""
+              onChange={(url) => {
+                if (url) setField('partnerLogos', [...form.partnerLogos, url]);
+              }}
+              label="Add partner logo"
+              accept="image/png,image/svg+xml,image/webp"
+            />
+          )}
+        </section>
+      )}
+
       {(tab === 'light' || tab === 'dark') && (
         <section className="card space-y-4">
           <h2 className="font-semibold">
@@ -170,7 +338,7 @@ export default function SettingsForm({ initial }: Props) {
               <ColorField
                 key={f.key}
                 label={f.label}
-                value={form[tab][f.key]}
+                value={form[tab][f.key] ?? ''}
                 onChange={(v) => setPaletteField(tab, f.key, v)}
               />
             ))}
@@ -189,7 +357,8 @@ export default function SettingsForm({ initial }: Props) {
               value={form.font}
               onChange={(e) => setField('font', e.target.value)}
             >
-              {PRESET_FONTS.map((f) => (
+              {!fontIsPreset && <option value={form.font}>Custom</option>}
+              {FONT_OPTIONS.map((f) => (
                 <option key={f.label} value={f.value}>
                   {f.label}
                 </option>
@@ -213,7 +382,7 @@ export default function SettingsForm({ initial }: Props) {
                 className="input"
                 value={form.radiusLg}
                 onChange={(e) => setField('radiusLg', e.target.value)}
-                placeholder="12px"
+                placeholder="16px"
               />
             </div>
           </div>
@@ -259,7 +428,7 @@ export default function SettingsForm({ initial }: Props) {
         </h2>
 
         <div
-          className="border border-border rounded-lg p-6"
+          className="border border-border rounded-lg overflow-hidden"
           style={{
             background: previewPalette.bg,
             color: previewPalette.text,
@@ -267,28 +436,55 @@ export default function SettingsForm({ initial }: Props) {
             fontFamily: form.font,
           }}
         >
+          {/* Mini hero */}
           <div
-            className="p-4"
-            style={{
-              background: previewPalette.surface,
-              borderColor: previewPalette.border,
-              borderWidth: 1,
-              borderStyle: 'solid',
-              borderRadius: form.radiusLg,
-            }}
+            className="relative px-6 pt-6 pb-10 overflow-hidden"
+            style={{ background: previewPalette.heroBg }}
           >
-            <p className="font-semibold mb-1">{form.orgName || 'Preview'}</p>
-            <p className="text-sm mb-3" style={{ color: previewPalette.muted }}>
-              This is how your theme will look.
+            <span
+              aria-hidden
+              className="absolute -right-6 -top-6 w-28 h-28 rounded-full"
+              style={{ background: previewPalette.accent }}
+            />
+            <p className="relative font-semibold text-lg max-w-[16rem] leading-snug">
+              {form.heroTitle || 'Teach, learn, and track — all in one place.'}
             </p>
+            <span
+              className="relative inline-block mt-3 px-4 py-2 text-xs font-medium"
+              style={{
+                background: previewPalette.primary,
+                color: previewPalette.primaryFg,
+                borderRadius: form.radiusMd,
+              }}
+            >
+              Sign in
+            </span>
+          </div>
 
-            <div className="flex gap-2 flex-wrap">
-              <Chip bg={previewPalette.primary} fg={previewPalette.primaryFg} radius={form.radiusMd}>
-                Primary
-              </Chip>
-              <Chip bg={previewPalette.success} fg="#fff" radius={form.radiusMd}>Success</Chip>
-              <Chip bg={previewPalette.warning} fg="#fff" radius={form.radiusMd}>Warning</Chip>
-              <Chip bg={previewPalette.danger} fg="#fff" radius={form.radiusMd}>Danger</Chip>
+          <div className="px-6 pb-6 -mt-5">
+            <div
+              className="relative p-4"
+              style={{
+                background: previewPalette.surface,
+                borderColor: previewPalette.border,
+                borderWidth: 1,
+                borderStyle: 'solid',
+                borderRadius: form.radiusLg,
+              }}
+            >
+              <p className="font-semibold mb-1">{form.orgName || 'Preview'}</p>
+              <p className="text-sm mb-3" style={{ color: previewPalette.muted }}>
+                This is how your theme will look.
+              </p>
+
+              <div className="flex gap-2 flex-wrap">
+                <Chip bg={previewPalette.primary} fg={previewPalette.primaryFg} radius={form.radiusMd}>
+                  Primary
+                </Chip>
+                <Chip bg={previewPalette.success} fg="#fff" radius={form.radiusMd}>Success</Chip>
+                <Chip bg={previewPalette.warning} fg="#fff" radius={form.radiusMd}>Warning</Chip>
+                <Chip bg={previewPalette.danger} fg="#fff" radius={form.radiusMd}>Danger</Chip>
+              </div>
             </div>
           </div>
         </div>
@@ -347,7 +543,7 @@ function ColorField({
       <div className="flex items-center gap-2">
         <input
           type="color"
-          value={value.startsWith('#') ? value : '#000000'}
+          value={/^#[0-9a-f]{6}$/i.test(value) ? value : '#000000'}
           onChange={(e) => onChange(e.target.value)}
           className="h-9 w-12 border border-border rounded-md cursor-pointer bg-surface"
         />

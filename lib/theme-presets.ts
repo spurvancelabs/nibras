@@ -1,0 +1,234 @@
+// Shared theme types, defaults and presets.
+// Client-safe (no mongoose import) so SettingsForm can use the presets directly.
+
+export type ThemePalette = {
+  primary: string;
+  primaryFg: string;
+  bg: string;
+  surface: string;
+  border: string;
+  muted: string;
+  text: string;
+  success: string;
+  warning: string;
+  danger: string;
+  /** Hero / highlight band background (the cream area in the default theme). */
+  heroBg: string;
+  /** Soft decorative colour: blobs, icon tiles, avatar rings. */
+  accent: string;
+};
+
+export type ThemeMode = 'light' | 'dark' | 'system';
+
+export type ThemeSettings = {
+  orgName: string;
+  logo: string;
+  favicon: string;
+
+  themeMode: ThemeMode; // org-wide default
+  light: ThemePalette;
+  dark: ThemePalette;
+
+  radiusMd: string;
+  radiusLg: string;
+  font: string;
+
+  contactEmail: string;
+  supportUrl: string;
+
+  // Landing page content
+  heroTitle: string;
+  heroSubtitle: string;
+  heroImage: string;
+  partnersTitle: string;
+  partnersText: string;
+  partnerLogos: string[];
+};
+
+export type ThemePreset = {
+  id: string;
+  name: string;
+  description: string;
+  light: ThemePalette;
+  dark: ThemePalette;
+  font: string;
+  radiusMd: string;
+  radiusLg: string;
+};
+
+const STATUS_LIGHT = { success: '#16a34a', warning: '#d97706', danger: '#dc2626' };
+const STATUS_DARK = { success: '#22c55e', warning: '#f59e0b', danger: '#f87171' };
+
+// ---------------------------------------------------------------------------
+// Fonts
+// ---------------------------------------------------------------------------
+
+export const FONT_OPTIONS = [
+  { label: 'Poppins', value: 'Poppins, ui-sans-serif, system-ui, sans-serif' },
+  { label: 'Inter', value: 'Inter, ui-sans-serif, system-ui, sans-serif' },
+  { label: 'DM Sans', value: '"DM Sans", ui-sans-serif, system-ui, sans-serif' },
+  { label: 'Plus Jakarta Sans', value: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif' },
+  { label: 'System', value: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
+  { label: 'Georgia', value: 'Georgia, Cambria, "Times New Roman", serif' },
+  { label: 'Mono', value: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
+];
+
+const GOOGLE_FONTS: Record<string, string> = {
+  Poppins: 'Poppins:wght@400;500;600;700',
+  Inter: 'Inter:wght@400;500;600;700',
+  'DM Sans': 'DM+Sans:wght@400;500;600;700',
+  'Plus Jakarta Sans': 'Plus+Jakarta+Sans:wght@400;500;600;700',
+};
+
+/** Google Fonts stylesheet for the first family in a font stack, or null for system fonts. */
+export function googleFontHref(font: string): string | null {
+  const first = (font.split(',')[0] ?? '').trim().replace(/^["']|["']$/g, '');
+  const spec = GOOGLE_FONTS[first];
+  return spec ? `https://fonts.googleapis.com/css2?family=${spec}&display=swap` : null;
+}
+
+// ---------------------------------------------------------------------------
+// Presets — "sunrise" is the default (the cream / black design)
+// ---------------------------------------------------------------------------
+
+export const THEME_PRESETS: ThemePreset[] = [
+  {
+    id: 'sunrise',
+    name: 'Sunrise',
+    description: 'Warm cream with ink-black buttons (default)',
+    font: FONT_OPTIONS[0].value,
+    radiusMd: '8px',
+    radiusLg: '16px',
+    light: {
+      primary: '#1b1b1b', primaryFg: '#ffffff',
+      bg: '#ffffff', surface: '#ffffff', border: '#ece5c9',
+      muted: '#6e6a5e', text: '#1b1b1b',
+      heroBg: '#fff6d1', accent: '#eadfb4',
+      ...STATUS_LIGHT,
+    },
+    dark: {
+      primary: '#ffe7a0', primaryFg: '#1b1b1b',
+      bg: '#121211', surface: '#1b1a17', border: '#2f2b20',
+      muted: '#a9a38f', text: '#f6f1df',
+      heroBg: '#1d1b14', accent: '#3b3524',
+      ...STATUS_DARK,
+    },
+  },
+  {
+    id: 'ocean',
+    name: 'Ocean',
+    description: 'Clean blue, classic SaaS',
+    font: FONT_OPTIONS[1].value,
+    radiusMd: '8px',
+    radiusLg: '12px',
+    light: {
+      primary: '#2563eb', primaryFg: '#ffffff',
+      bg: '#f8fafc', surface: '#ffffff', border: '#e2e8f0',
+      muted: '#64748b', text: '#0f172a',
+      heroBg: '#eef4ff', accent: '#dbe7fe',
+      ...STATUS_LIGHT,
+    },
+    dark: {
+      primary: '#60a5fa', primaryFg: '#0f172a',
+      bg: '#0b1220', surface: '#111827', border: '#1f2937',
+      muted: '#94a3b8', text: '#e5e7eb',
+      heroBg: '#0f1a2e', accent: '#1e3a5f',
+      ...STATUS_DARK,
+    },
+  },
+  {
+    id: 'forest',
+    name: 'Forest',
+    description: 'Calm green, academic feel',
+    font: FONT_OPTIONS[2].value,
+    radiusMd: '8px',
+    radiusLg: '14px',
+    light: {
+      primary: '#166534', primaryFg: '#ffffff',
+      bg: '#ffffff', surface: '#ffffff', border: '#dfeee3',
+      muted: '#5b6b61', text: '#10241a',
+      heroBg: '#ecf7ef', accent: '#cfe9d7',
+      ...STATUS_LIGHT,
+    },
+    dark: {
+      primary: '#4ade80', primaryFg: '#06210f',
+      bg: '#0b1410', surface: '#111c16', border: '#1f2f25',
+      muted: '#94a89b', text: '#e6f2ea',
+      heroBg: '#0f1f16', accent: '#1d3a28',
+      ...STATUS_DARK,
+    },
+  },
+  {
+    id: 'plum',
+    name: 'Plum',
+    description: 'Creative violet',
+    font: FONT_OPTIONS[3].value,
+    radiusMd: '10px',
+    radiusLg: '18px',
+    light: {
+      primary: '#6d28d9', primaryFg: '#ffffff',
+      bg: '#ffffff', surface: '#ffffff', border: '#ebe5f7',
+      muted: '#6b6480', text: '#1e1530',
+      heroBg: '#f4efff', accent: '#e4d9fd',
+      ...STATUS_LIGHT,
+    },
+    dark: {
+      primary: '#a78bfa', primaryFg: '#170f2b',
+      bg: '#110d1a', surface: '#181324', border: '#2a2338',
+      muted: '#a59fba', text: '#ede9f7',
+      heroBg: '#1a1428', accent: '#2e2448',
+      ...STATUS_DARK,
+    },
+  },
+  {
+    id: 'coral',
+    name: 'Coral',
+    description: 'Energetic orange-red',
+    font: FONT_OPTIONS[0].value,
+    radiusMd: '8px',
+    radiusLg: '16px',
+    light: {
+      primary: '#e4572e', primaryFg: '#ffffff',
+      bg: '#ffffff', surface: '#ffffff', border: '#f2e4dd',
+      muted: '#75645d', text: '#24140f',
+      heroBg: '#fff1eb', accent: '#fbd9cb',
+      ...STATUS_LIGHT,
+    },
+    dark: {
+      primary: '#ff8a65', primaryFg: '#2a0f06',
+      bg: '#140f0d', surface: '#1d1613', border: '#33241e',
+      muted: '#b39f97', text: '#f7ece7',
+      heroBg: '#211612', accent: '#40271d',
+      ...STATUS_DARK,
+    },
+  },
+];
+
+const SUNRISE = THEME_PRESETS[0];
+
+export const DEFAULT_LIGHT: ThemePalette = { ...SUNRISE.light };
+export const DEFAULT_DARK: ThemePalette = { ...SUNRISE.dark };
+
+export const DEFAULT_SETTINGS: ThemeSettings = {
+  orgName: 'LMS',
+  logo: '',
+  favicon: '',
+
+  themeMode: 'light',
+  light: DEFAULT_LIGHT,
+  dark: DEFAULT_DARK,
+
+  radiusMd: SUNRISE.radiusMd,
+  radiusLg: SUNRISE.radiusLg,
+  font: SUNRISE.font,
+
+  contactEmail: '',
+  supportUrl: '',
+
+  heroTitle: '',
+  heroSubtitle: '',
+  heroImage: '',
+  partnersTitle: 'Trusted by',
+  partnersText: '',
+  partnerLogos: [],
+};

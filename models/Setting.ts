@@ -1,79 +1,21 @@
+// =============================================================================
+// FILE: models/Setting.ts
+// Mongoose model for global Settings (theme + landing content).
+// Types/defaults live in lib/theme-config.ts and are re-exported from here.
+// =============================================================================
+
 import { Schema, model, models } from 'mongoose';
+import {
+  DEFAULT_LIGHT,
+  DEFAULT_DARK,
+  DEFAULT_SETTINGS,
+  type ThemePalette,
+} from '../lib/theme-config';
 
-export type ThemePalette = {
-  primary: string;
-  primaryFg: string;
-  bg: string;
-  surface: string;
-  border: string;
-  muted: string;
-  text: string;
-  success: string;
-  warning: string;
-  danger: string;
-};
-
-export type ThemeMode = 'light' | 'dark' | 'system';
-
-export type ThemeSettings = {
-  orgName: string;
-  logo: string;
-  favicon: string;
-
-  themeMode: ThemeMode; // org-wide default
-  light: ThemePalette;
-  dark: ThemePalette;
-
-  radiusMd: string;
-  radiusLg: string;
-  font: string;
-
-  contactEmail: string;
-  supportUrl: string;
-};
-
-export const DEFAULT_LIGHT: ThemePalette = {
-  primary: '#2563eb',
-  primaryFg: '#ffffff',
-  bg: '#f8fafc',
-  surface: '#ffffff',
-  border: '#e2e8f0',
-  muted: '#64748b',
-  text: '#0f172a',
-  success: '#16a34a',
-  warning: '#d97706',
-  danger: '#dc2626',
-};
-
-export const DEFAULT_DARK: ThemePalette = {
-  primary: '#60a5fa',
-  primaryFg: '#0f172a',
-  bg: '#0b1220',
-  surface: '#111827',
-  border: '#1f2937',
-  muted: '#94a3b8',
-  text: '#e5e7eb',
-  success: '#22c55e',
-  warning: '#f59e0b',
-  danger: '#ef4444',
-};
-
-export const DEFAULT_SETTINGS: ThemeSettings = {
-  orgName: 'LMS',
-  logo: '',
-  favicon: '',
-
-  themeMode: 'system',
-  light: DEFAULT_LIGHT,
-  dark: DEFAULT_DARK,
-
-  radiusMd: '8px',
-  radiusLg: '12px',
-  font: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-
-  contactEmail: '',
-  supportUrl: '',
-};
+// Types, defaults and presets live in lib/theme-config (client-safe).
+// Re-exported here so existing imports from '@/models/Setting' keep working.
+export type { ThemePalette, ThemeMode, ThemeSettings, ThemePreset } from '../lib/theme-config';
+export { DEFAULT_LIGHT, DEFAULT_DARK, DEFAULT_SETTINGS, THEME_PRESETS } from '../lib/theme-config';
 
 const PaletteSchema = new Schema<ThemePalette>(
   {
@@ -87,6 +29,8 @@ const PaletteSchema = new Schema<ThemePalette>(
     success: { type: String, default: DEFAULT_LIGHT.success },
     warning: { type: String, default: DEFAULT_LIGHT.warning },
     danger: { type: String, default: DEFAULT_LIGHT.danger },
+    heroBg: { type: String, default: DEFAULT_LIGHT.heroBg },
+    accent: { type: String, default: DEFAULT_LIGHT.accent },
   },
   { _id: false }
 );
@@ -113,6 +57,14 @@ const SettingSchema = new Schema(
 
     contactEmail: { type: String, default: '' },
     supportUrl: { type: String, default: '' },
+
+    // Landing page content
+    heroTitle: { type: String, default: '' },
+    heroSubtitle: { type: String, default: '' },
+    heroImage: { type: String, default: '' },
+    partnersTitle: { type: String, default: DEFAULT_SETTINGS.partnersTitle },
+    partnersText: { type: String, default: '' },
+    partnerLogos: { type: [String], default: [] },
 
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },

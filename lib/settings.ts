@@ -1,3 +1,8 @@
+// =============================================================================
+// FILE: lib/settings.ts
+// Server-only helpers: getSettings() (cached) and updateSettings().
+// =============================================================================
+
 import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { db } from './db';
@@ -23,6 +28,9 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
     ...d,
     light: mergePalette(DEFAULT_LIGHT, d.light as Partial<ThemePalette> | undefined),
     dark: mergePalette(DEFAULT_DARK, d.dark as Partial<ThemePalette> | undefined),
+    partnerLogos: Array.isArray(d.partnerLogos)
+      ? (d.partnerLogos as unknown[]).filter((x): x is string => typeof x === 'string')
+      : [],
   } as ThemeSettings;
 }
 
@@ -52,6 +60,8 @@ export async function updateSettings(
   for (const [k, v] of Object.entries(patch)) {
     if (k === 'light' || k === 'dark') {
       clean[k] = v; // whole palette replaced
+    } else if (k === 'partnerLogos' && Array.isArray(v)) {
+      clean[k] = v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').slice(0, 12);
     } else if (typeof v === 'string') {
       clean[k] = v;
     }

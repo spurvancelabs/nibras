@@ -1,209 +1,175 @@
+/* =============================================================================
+   FILE: app/globals.css
+   Global styles + Tailwind v4 theme tokens.
+   The values below are only fallbacks — app/layout.tsx overrides every
+   --color-*, --radius-* and --font-sans at runtime from Settings (MongoDB).
+   ============================================================================= */
+
 @import "tailwindcss";
 
-/* Base CSS Variables - these will be overridden by the layout.tsx runtime theme injection */
-:root {
-  --color-primary: #2563eb;
+/* `dark:` utilities follow the .dark class set by ThemeToggle / theme-script,
+   not the OS setting. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Registering the tokens here generates real Tailwind utilities:
+   bg-primary, text-primary-fg, border-border, bg-hero, bg-accent, text-muted,
+   and opacity variants such as bg-primary/10, text-text/80, hover:bg-primary … */
+@theme {
+  --color-primary: #1b1b1b;
   --color-primary-fg: #ffffff;
-  --color-bg: #f8fafc;
+  --color-bg: #ffffff;
   --color-surface: #ffffff;
-  --color-border: #e2e8f0;
-  --color-muted: #64748b;
-  --color-text: #0f172a;
+  --color-border: #ece5c9;
+  --color-muted: #6e6a5e;
+  --color-text: #1b1b1b;
   --color-success: #16a34a;
   --color-warning: #d97706;
   --color-danger: #dc2626;
+  --color-hero: #fff6d1;
+  --color-accent: #eadfb4;
+
   --radius-md: 8px;
-  --radius-lg: 12px;
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --radius-lg: 16px;
+  --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
 }
 
-/* Dark theme variables */
-.dark {
-  --color-primary: #60a5fa;
-  --color-primary-fg: #0f172a;
-  --color-bg: #0b1220;
-  --color-surface: #111827;
-  --color-border: #1f2937;
-  --color-muted: #94a3b8;
-  --color-text: #e5e7eb;
-  --color-success: #22c55e;
-  --color-warning: #f59e0b;
-  --color-danger: #ef4444;
-}
-
-/* Base body styles using CSS variables */
-html,
-body {
-  background: var(--color-bg);
-  color: var(--color-text);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
-
-/* Custom utility classes using CSS variables */
-.card {
-  background-color: var(--color-surface);
-  padding: 1.5rem;
-  border-radius: var(--radius-md);
-  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
-  border: 1px solid var(--color-border);
-}
-
-.btn-primary {
-  display: inline-block;
-  background-color: var(--color-primary);
-  color: var(--color-primary-fg);
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  text-align: center;
-  text-decoration: none;
-  transition: all 0.2s ease;
-  border: none;
-  cursor: pointer;
-}
-
-.btn-primary:hover {
-  opacity: 0.9;
-}
-
-.btn-primary:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.btn-outline {
-  display: inline-block;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  padding: 0.25rem 0.75rem;
-  border-radius: var(--radius-md);
-  font-weight: 500;
-  transition: all 0.2s ease;
-  cursor: pointer;
-}
-
-.btn-outline:hover {
-  background-color: var(--color-bg);
-}
-
-.text-muted {
-  color: var(--color-muted);
-}
-
-.label {
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text);
-  margin-bottom: 0.25rem;
-}
-
-.input {
-  width: 100%;
-  padding: 0.5rem 0.75rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background-color: var(--color-surface);
-  color: var(--color-text);
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  outline: none;
-  transition: all 0.2s ease;
-}
-
-.input:focus {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
-  border-color: transparent;
-}
-
-.badge-danger {
-  background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
-  color: var(--color-danger);
-  padding: 0.5rem 0.75rem;
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-  display: flex;
-  align-items: center;
-}
-
-.badge-muted {
-  background-color: color-mix(in srgb, var(--color-muted) 10%, transparent);
-  color: var(--color-muted);
-  padding: 0.25rem 0.5rem;
-  border-radius: calc(var(--radius-md) * 0.5);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.badge-success {
-  background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
-  color: var(--color-success);
-  padding: 0.25rem 0.5rem;
-  border-radius: calc(var(--radius-md) * 0.5);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.badge-warning {
-  background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
-  color: var(--color-warning);
-  padding: 0.25rem 0.5rem;
-  border-radius: calc(var(--radius-md) * 0.5);
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-/* Header styles */
-header {
-  background-color: var(--color-surface);
-  border-bottom: 1px solid var(--color-border);
-}
-
-/* Utility classes for theme colors */
-.bg-surface { background-color: var(--color-surface); }
-.bg-primary { background-color: var(--color-primary); }
-.bg-bg { background-color: var(--color-bg); }
-.text-primary { color: var(--color-primary); }
-.text-primary-fg { color: var(--color-primary-fg); }
-.text-text { color: var(--color-text); }
-.text-success { color: var(--color-success); }
-.text-warning { color: var(--color-warning); }
-.text-danger { color: var(--color-danger); }
-.border-color { border-color: var(--color-border); }
-.border-border { border-color: var(--color-border); }
-
-/* Additional utility classes for admin settings */
-.animate-pulse {
-  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 1;
+@layer base {
+  /* Dark fallbacks (layout.tsx overrides these too) */
+  .dark {
+    --color-primary: #ffe7a0;
+    --color-primary-fg: #1b1b1b;
+    --color-bg: #121211;
+    --color-surface: #1b1a17;
+    --color-border: #2f2b20;
+    --color-muted: #a9a38f;
+    --color-text: #f6f1df;
+    --color-success: #22c55e;
+    --color-warning: #f59e0b;
+    --color-danger: #f87171;
+    --color-hero: #1d1b14;
+    --color-accent: #3b3524;
   }
-  50% {
-    opacity: .5;
+
+  html,
+  body {
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Default header look (in a layer so pages can override it with utilities) */
+  header {
+    background-color: var(--color-surface);
+    border-bottom: 1px solid var(--color-border);
   }
 }
 
-.bg-border-50 {
+/* Shared component classes (layered so Tailwind utilities can still override them) */
+@layer components {
+  .card {
+    background-color: var(--color-surface);
+    padding: 1.5rem;
+    border-radius: var(--radius-md);
+    box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    border: 1px solid var(--color-border);
+  }
+
+  .btn-primary {
+    display: inline-block;
+    background-color: var(--color-primary);
+    color: var(--color-primary-fg);
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    text-align: center;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    border: none;
+    cursor: pointer;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-outline {
+    display: inline-block;
+    border: 1px solid var(--color-border);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    padding: 0.25rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-outline:hover { background-color: var(--color-bg); }
+
+  .label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-text);
+    margin-bottom: 0.25rem;
+  }
+
+  .input {
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    color: var(--color-text);
+    box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    outline: none;
+    transition: all 0.2s ease;
+  }
+  .input:focus {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    border-color: transparent;
+  }
+
+  .badge-danger {
+    background-color: color-mix(in srgb, var(--color-danger) 10%, transparent);
+    color: var(--color-danger);
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-size: 0.875rem;
+    display: flex;
+    align-items: center;
+  }
+
+  .badge-muted,
+  .badge-success,
+  .badge-warning {
+    padding: 0.25rem 0.5rem;
+    border-radius: calc(var(--radius-md) * 0.5);
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
+  .badge-muted {
+    background-color: color-mix(in srgb, var(--color-muted) 10%, transparent);
+    color: var(--color-muted);
+  }
+  .badge-success {
+    background-color: color-mix(in srgb, var(--color-success) 10%, transparent);
+    color: var(--color-success);
+  }
+  .badge-warning {
+    background-color: color-mix(in srgb, var(--color-warning) 10%, transparent);
+    color: var(--color-warning);
+  }
+}
+
+/* Old helper names still used around the app */
+@utility border-color {
+  border-color: var(--color-border);
+}
+@utility bg-border-50 {
   background-color: color-mix(in srgb, var(--color-border) 50%, transparent);
 }
 
-/* Grid utilities */
-.grid { display: grid; }
-.grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-
-@media (min-width: 640px) {
-  .sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
-
-@media (min-width: 1024px) {
-  .lg\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .lg\:grid-cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-}
+/* Removed on purpose (Tailwind now generates them from @theme):
+   .bg-surface .bg-primary .bg-bg .text-primary .text-primary-fg .text-text
+   .text-success .text-warning .text-danger .border-border .text-muted
+   .grid / .grid-cols-* / .animate-pulse */
