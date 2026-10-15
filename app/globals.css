@@ -123,6 +123,42 @@
   }
   .btn-outline:hover { background-color: var(--color-bg); }
 
+  /* Destructive action (used by SessionForm, MaterialsPanel, …) */
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    background-color: var(--color-danger);
+    color: #fff;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    border: 1px solid var(--color-danger);
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-danger:hover { opacity: 0.9; }
+  .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Borderless button (icon buttons, "Clear", "Remove"…) */
+  .btn-ghost {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.375rem;
+    background-color: transparent;
+    color: var(--color-text);
+    padding: 0.375rem 0.75rem;
+    border-radius: var(--radius-md);
+    font-weight: 500;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background-color: var(--color-hero); }
+  .btn-ghost:disabled { opacity: 0.5; cursor: not-allowed; }
+
   .label {
     display: block;
     font-size: 0.875rem;

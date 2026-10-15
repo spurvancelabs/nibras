@@ -1,3 +1,13 @@
+// =============================================================================
+// FILE: app/(app)/sessions/[id]/AttendancePanel.tsx
+// Session attendance (client).
+//  - Student: sees own status.
+//  - Mentor/admin: roster with Present/Absent/Late/Excused, notes, live counts,
+//    sticky save bar.
+// Logic unchanged. The mentor view is now its own component so React hooks are
+// never called after an early return (rules-of-hooks fix).
+// =============================================================================
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -6,6 +16,7 @@ import Avatar from '@/components/Avatar';
 import { saveAttendanceAction } from './attendance/actions';
 import { ATTENDANCE_STATUSES, type AttendanceStatus } from '@/lib/constants';
 import type { AttendanceRosterRow } from '@/lib/attendance';
+import { Panel, Badge, Alert, EmptyNote, Icons } from '@/components/ui';
 
 type Props = {
   sessionId: string;
@@ -22,55 +33,82 @@ const LABEL: Record<AttendanceStatus, string> = {
   excused: 'Excused',
 };
 
-const COLOR: Record<AttendanceStatus, string> = {
-  present: 'bg-[var(--color-success)] text-white border-transparent',
-  absent: 'bg-[var(--color-danger)] text-white border-transparent',
-  late: 'bg-[var(--color-warning)] text-white border-transparent',
-  excused: 'bg-slate-500 text-white border-transparent',
+const ACTIVE: Record<AttendanceStatus, string> = {
+  present: 'bg-success text-white border-success',
+  absent: 'bg-danger text-white border-danger',
+  late: 'bg-warning text-white border-warning',
+  excused: 'bg-muted text-white border-muted',
+};
+
+const TONE: Record<AttendanceStatus, 'success' | 'danger' | 'warning' | 'muted'> = {
+  present: 'success',
+  absent: 'danger',
+  late: 'warning',
+  excused: 'muted',
 };
 
 // Student-facing status chip
 function StatusChip({ status }: { status: AttendanceStatus | null }) {
-  if (!status) return <span className="badge-muted">not marked</span>;
-  if (status === 'present') return <span className="badge-success">present</span>;
-  if (status === 'absent') return <span className="badge-danger">absent</span>;
-  if (status === 'late') return <span className="badge-warning">late</span>;
-  return <span className="badge-muted">excused</span>;
+  if (!status) return <Badge tone="muted">not marked</Badge>;
+  return <Badge tone={TONE[status]} dot>{status}</Badge>;
 }
 
-export default function AttendancePanel({
-  sessionId,
-  roster,
-  canManage,
-  myAttendance,
-  viewerIsStudent,
-}: Props) {
-  const router = useRouter();
-
+export default function AttendancePanel(props: Props) {
   // Student view — just show their own status
-  if (viewerIsStudent) {
+  if (props.viewerIsStudent) {
+    const { myAttendance } = props;
     return (
-      <div className="card space-y-2">
-        <h2 className="font-semibold">Your attendance</h2>
+      <Panel title="Your attendance" icon={Icons.check}>
         {myAttendance ? (
-          <>
-            <div className="flex items-center gap-2">
-              <StatusChip status={myAttendance.status} />
-            </div>
+          <div className="flex items-start gap-3">
+            <StatusChip status={myAttendance.status} />
             {myAttendance.note && (
-              <p className="text-xs text-muted">{myAttendance.note}</p>
+              <p className="text-sm text-muted">{myAttendance.note}</p>
             )}
-          </>
+          </div>
         ) : (
           <p className="text-sm text-muted">
-            Your mentor hasn't marked attendance for this session yet.
+            Your mentor hasn&apos;t marked attendance for this session yet.
           </p>
         )}
-      </div>
+      </Panel>
     );
   }
 
-  // Mentor/admin: editable grid
+  if (!props.canManage) {
+    return (
+      <Panel title="Attendance" icon={Icons.check}>
+        <p className="text-sm text-muted">
+          Attendance is managed by the mentor of this session.
+        </p>
+      </Panel>
+    );
+  }
+
+  if (props.roster.length === 0) {
+    return (
+      <Panel title="Attendance" icon={Icons.check} bodyClassName="p-0">
+        <EmptyNote compact icon={Icons.users} title="No students in this program yet." />
+      </Panel>
+    );
+  }
+
+  return <AttendanceEditor sessionId={props.sessionId} roster={props.roster} />;
+}
+
+// ---------------------------------------------------------------------------
+// Mentor/admin: editable roster
+// ---------------------------------------------------------------------------
+
+function AttendanceEditor({
+  sessionId,
+  roster,
+}: {
+  sessionId: string;
+  roster: AttendanceRosterRow[];
+}) {
+  const router = useRouter();
+
   const [state, setState] = useState<Record<string, { status: AttendanceStatus | null; note: string }>>(
     () => {
       const map: Record<string, { status: AttendanceStatus | null; note: string }> = {};
@@ -146,53 +184,45 @@ export default function AttendancePanel({
     });
   }
 
-  if (!canManage) {
-    return (
-      <div className="card text-sm text-muted">
-        Attendance is managed by the mentor of this session.
-      </div>
-    );
-  }
-
-  if (roster.length === 0) {
-    return (
-      <div className="card text-sm text-muted">
-        No students in this program yet.
-      </div>
-    );
+  // Live counts (display only)
+  const counts = { present: 0, absent: 0, late: 0, excused: 0, unmarked: 0 };
+  for (const r of roster) {
+    const s = state[r.studentId]?.status ?? null;
+    if (s) counts[s] += 1;
+    else counts.unmarked += 1;
   }
 
   return (
-    <div className="card space-y-4">
-      <div className="flex items-center justify-between gap-2 flex-wrap">
-        <h2 className="font-semibold">Attendance</h2>
+    <Panel
+      title="Attendance"
+      icon={Icons.check}
+      bodyClassName="p-0"
+      action={
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={markAllPresent}
-            className="btn-outline text-xs"
-          >
+          <button type="button" onClick={markAllPresent} className="btn-outline text-xs h-8">
             Mark all present
           </button>
-          <button
-            type="button"
-            onClick={clearAll}
-            className="btn-outline text-xs"
-          >
+          <button type="button" onClick={clearAll} className="btn-ghost text-xs h-8">
             Clear
           </button>
         </div>
+      }
+    >
+      {/* Summary */}
+      <div className="flex flex-wrap gap-2 px-5 py-3 border-b border-border bg-bg">
+        <Badge tone="success">{counts.present} present</Badge>
+        <Badge tone="danger">{counts.absent} absent</Badge>
+        <Badge tone="warning">{counts.late} late</Badge>
+        <Badge tone="muted">{counts.excused} excused</Badge>
+        {counts.unmarked > 0 && (
+          <span className="text-[11px] text-muted self-center">{counts.unmarked} not marked</span>
+        )}
       </div>
 
-      {error && (
-        <div className="text-sm px-3 py-2 rounded-md border bg-red-50 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-200 dark:border-red-800">
-          {error}
-        </div>
-      )}
-
-      {msg && (
-        <div className="text-sm px-3 py-2 rounded-md border bg-green-50 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-200 dark:border-green-800">
-          {msg}
+      {(error || msg) && (
+        <div className="px-5 pt-4">
+          {error && <Alert>{error}</Alert>}
+          {msg && <Alert tone="success">{msg}</Alert>}
         </div>
       )}
 
@@ -200,26 +230,34 @@ export default function AttendancePanel({
         {roster.map((r) => {
           const cur = state[r.studentId] ?? { status: null, note: '' };
           return (
-            <li key={r.studentId} className="py-3 space-y-2">
-              <div className="flex items-center gap-3 flex-wrap">
-                <Avatar name={r.name} src={r.avatar} size={28} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium truncate">{r.name}</p>
-                  <p className="text-xs text-muted truncate">{r.email}</p>
+            <li key={r.studentId} className="px-5 py-4 space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <Avatar name={r.name} src={r.avatar} size={36} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{r.name}</p>
+                    <p className="text-xs text-muted truncate">{r.email}</p>
+                  </div>
                 </div>
 
-                <div className="flex gap-1 flex-wrap">
+                <div
+                  role="radiogroup"
+                  aria-label={`Attendance for ${r.name}`}
+                  className="grid grid-cols-4 sm:flex gap-1 p-1 rounded-[var(--radius-md)] bg-bg border border-border"
+                >
                   {ATTENDANCE_STATUSES.map((s) => {
                     const active = cur.status === s;
                     return (
                       <button
                         key={s}
                         type="button"
+                        role="radio"
+                        aria-checked={active}
                         onClick={() => setStatus(r.studentId, s)}
-                        className={`px-2 py-1 text-xs rounded-md border transition ${
+                        className={`h-8 px-2.5 text-xs font-medium rounded-[calc(var(--radius-md)-2px)] border transition ${
                           active
-                            ? COLOR[s]
-                            : 'bg-surface text-muted border-border hover:bg-bg'
+                            ? ACTIVE[s]
+                            : 'border-transparent text-muted hover:text-text hover:bg-surface'
                         }`}
                       >
                         {LABEL[s]}
@@ -230,27 +268,32 @@ export default function AttendancePanel({
               </div>
 
               <input
-                className="input text-xs"
+                className="input text-xs h-9"
                 placeholder="Optional note (e.g. left early)"
                 value={cur.note}
                 onChange={(e) => setNote(r.studentId, e.target.value)}
                 maxLength={300}
+                aria-label={`Note for ${r.name}`}
               />
             </li>
           );
         })}
       </ul>
 
-      <div className="flex justify-end gap-2">
+      {/* Sticky save bar */}
+      <div className="sticky bottom-0 flex items-center justify-between gap-3 px-5 py-3 border-t border-border bg-surface/95 backdrop-blur">
+        <p className="text-xs text-muted">
+          {roster.length - counts.unmarked} of {roster.length} marked
+        </p>
         <button
           type="button"
           onClick={save}
           disabled={pending}
-          className="btn-primary"
+          className="btn-primary h-10 px-5"
         >
           {pending ? 'Saving…' : 'Save attendance'}
         </button>
       </div>
-    </div>
+    </Panel>
   );
 }
