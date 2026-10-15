@@ -56,7 +56,7 @@ export default function LoginForm({
   const brand = (
     <Link href="/" className="inline-flex items-center gap-2.5">
       {logo ? (
-        <Image src={logo} alt={orgName} width={140} height={28} className="h-8 w-auto object-contain" />
+        <Image src={logo} alt={orgName} width={320} height={80} className="brand-logo" />
       ) : (
         <>
           <span aria-hidden className="flex items-center">
@@ -123,7 +123,7 @@ export default function LoginForm({
 
       {/* ---------------- Form ---------------- */}
       <section className="flex flex-col min-h-screen">
-        <div className="flex items-center justify-between px-5 sm:px-8 h-16 lg:hidden bg-hero">
+        <div className="flex items-center justify-between px-5 sm:px-8 min-h-16 py-2 lg:hidden bg-hero">
           {brand}
           <Link href="/" className="text-sm text-muted hover:text-text transition">
             Home

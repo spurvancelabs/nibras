@@ -1,7 +1,7 @@
 // =============================================================================
 // FILE: app/(app)/admin/settings/actions.ts
 // Server action used by SettingsForm to validate (zod) and save Settings.
-// Includes the new palette keys (heroBg, accent) and landing-page fields.
+// Includes the new palette keys (heroBg, accent), landing-page fields and logo size.
 // =============================================================================
 
 'use server';
@@ -43,6 +43,13 @@ const schema = z.object({
   orgName: z.string().min(1).max(80),
   logo: z.string().max(500).optional().default(''),
   favicon: z.string().max(500).optional().default(''),
+  logoHeight: z.coerce
+    .number()
+    .int()
+    .min(16, 'Logo size must be at least 16px')
+    .max(80, 'Logo size can be at most 80px')
+    .optional()
+    .default(32),
 
   themeMode: z.enum(['light', 'dark', 'system']),
   light: paletteSchema,

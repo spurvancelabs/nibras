@@ -33,6 +33,10 @@
   --font-sans: Poppins, ui-sans-serif, system-ui, sans-serif;
 }
 
+:root {
+  --logo-h: 32px; /* overridden by app/layout.tsx from Settings */
+}
+
 @layer base {
   /* Dark fallbacks (layout.tsx overrides these too) */
   .dark {
@@ -67,6 +71,21 @@
 
 /* Shared component classes (layered so Tailwind utilities can still override them) */
 @layer components {
+  /* Uploaded org logo. Size comes from Settings → Branding → Logo size (--logo-h).
+     Phones are capped at 44px so the navbar never breaks. */
+  .brand-logo {
+    height: min(var(--logo-h, 32px), 44px);
+    width: auto;
+    max-width: 180px;
+    object-fit: contain;
+  }
+  @media (min-width: 768px) {
+    .brand-logo {
+      height: var(--logo-h, 32px);
+      max-width: 280px;
+    }
+  }
+
   .card {
     background-color: var(--color-surface);
     padding: 1.5rem;

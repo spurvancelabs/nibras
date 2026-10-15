@@ -41,6 +41,7 @@ const SettingSchema = new Schema(
 
     orgName: { type: String, default: DEFAULT_SETTINGS.orgName },
     logo: { type: String, default: '' },
+    logoHeight: { type: Number, default: DEFAULT_SETTINGS.logoHeight, min: 16, max: 80 },
     favicon: { type: String, default: '' },
 
     themeMode: {

@@ -1,6 +1,6 @@
 // =============================================================================
 // FILE: app/(app)/admin/settings/SettingsForm.tsx
-// Admin → Settings form (client). Theme presets, light/dark palettes,
+// Admin → Settings form (client). Branding (logo + logo size), theme presets, light/dark palettes,
 // typography, landing-page content (hero + Trusted by logos), contact.
 // =============================================================================
 
@@ -9,7 +9,21 @@
 import { useMemo, useState, useTransition } from 'react';
 import CloudinaryUpload from '@/components/CloudinaryUpload';
 import { saveSettings } from './actions';
-import { FONT_OPTIONS, THEME_PRESETS, type ThemePreset } from '@/lib/theme-config';
+import {
+  FONT_OPTIONS,
+  THEME_PRESETS,
+  LOGO_MIN,
+  LOGO_MAX,
+  clampLogoHeight,
+  type ThemePreset,
+} from '@/lib/theme-config';
+
+const LOGO_SIZE_PRESETS = [
+  { label: 'Small', value: 24 },
+  { label: 'Medium', value: 32 },
+  { label: 'Large', value: 44 },
+  { label: 'X-Large', value: 56 },
+];
 import type {
   ThemeSettings,
   ThemePalette,
@@ -92,6 +106,8 @@ export default function SettingsForm({ initial }: Props) {
     () => (tab === 'dark' ? form.dark : form.light),
     [tab, form.light, form.dark]
   );
+
+  const logoHeight = clampLogoHeight(form.logoHeight ?? 32);
 
   const fontIsPreset = FONT_OPTIONS.some((f) => f.value === form.font);
 
@@ -224,6 +240,111 @@ export default function SettingsForm({ initial }: Props) {
                 accept="image/png,image/x-icon,image/svg+xml"
               />
             </div>
+          </div>
+
+          {/* Logo size */}
+          <div className="pt-2 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <label className="label mb-0" htmlFor="logoHeight">
+                Logo size
+              </label>
+              <span className="text-xs text-muted tabular-nums">{logoHeight}px tall</span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setField('logoHeight', clampLogoHeight(logoHeight - 2))}
+                disabled={logoHeight <= LOGO_MIN}
+                aria-label="Decrease logo size"
+                className="btn-outline grid place-items-center w-9 h-9 p-0 text-lg leading-none disabled:opacity-40"
+              >
+                −
+              </button>
+              <input
+                id="logoHeight"
+                type="range"
+                min={LOGO_MIN}
+                max={LOGO_MAX}
+                step={1}
+                value={logoHeight}
+                onChange={(e) => setField('logoHeight', clampLogoHeight(e.target.value))}
+                className="flex-1 accent-primary cursor-pointer"
+              />
+              <button
+                type="button"
+                onClick={() => setField('logoHeight', clampLogoHeight(logoHeight + 2))}
+                disabled={logoHeight >= LOGO_MAX}
+                aria-label="Increase logo size"
+                className="btn-outline grid place-items-center w-9 h-9 p-0 text-lg leading-none disabled:opacity-40"
+              >
+                +
+              </button>
+              <input
+                type="number"
+                min={LOGO_MIN}
+                max={LOGO_MAX}
+                value={logoHeight}
+                onChange={(e) => setField('logoHeight', clampLogoHeight(e.target.value))}
+                aria-label="Logo height in pixels"
+                className="input w-20 text-center tabular-nums"
+              />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {LOGO_SIZE_PRESETS.map((p) => (
+                <button
+                  key={p.label}
+                  type="button"
+                  onClick={() => setField('logoHeight', p.value)}
+                  className={`px-3 py-1 rounded-full border text-xs transition ${
+                    logoHeight === p.value
+                      ? 'bg-primary text-primary-fg border-primary'
+                      : 'border-border text-muted hover:text-text'
+                  }`}
+                >
+                  {p.label} · {p.value}px
+                </button>
+              ))}
+            </div>
+
+            {/* Live preview of a navbar with the chosen size */}
+            <div className="rounded-lg border border-border overflow-hidden">
+              <p className="px-3 py-1.5 text-[11px] uppercase tracking-wider text-muted border-b border-border bg-bg">
+                Preview
+              </p>
+              <div
+                className="flex items-center justify-between gap-4 px-4 py-2 min-h-16"
+                style={{ background: form.light.heroBg, color: form.light.text }}
+              >
+                {form.logo ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={form.logo}
+                    alt={form.orgName}
+                    style={{ height: logoHeight, width: 'auto', maxWidth: 280, objectFit: 'contain' }}
+                  />
+                ) : (
+                  <span className="text-sm font-semibold" style={{ fontSize: Math.max(13, logoHeight * 0.5) }}>
+                    {form.orgName || 'Your logo'}
+                  </span>
+                )}
+                <span
+                  className="hidden sm:inline-block px-4 py-2 text-xs font-medium"
+                  style={{
+                    background: form.light.primary,
+                    color: form.light.primaryFg,
+                    borderRadius: form.radiusMd,
+                  }}
+                >
+                  Sign in
+                </span>
+              </div>
+            </div>
+            <p className="text-xs text-muted">
+              Used on the landing page, sidebar and login page. On phones the logo is capped at 44px so the navbar stays tidy.
+              {!form.logo && ' Upload a logo above to see the real preview.'}
+            </p>
           </div>
         </section>
       )}

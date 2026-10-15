@@ -97,15 +97,16 @@ export default async function LandingPage() {
           Header
       ================================================================== */}
       <header className="sticky top-0 z-30 bg-hero border-0">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-16 sm:min-h-20 py-2 flex items-center justify-between gap-4">
           <Link href="/" className="flex items-center gap-2.5 min-w-0">
             {settings.logo ? (
               <Image
                 src={settings.logo}
                 alt={settings.orgName}
-                width={140}
-                height={28}
-                className="h-7 w-auto object-contain"
+                width={320}
+                height={80}
+                priority
+                className="brand-logo"
               />
             ) : (
               <>

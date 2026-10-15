@@ -29,6 +29,8 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 export type ThemeSettings = {
   orgName: string;
   logo: string;
+  /** Logo height in px (landing navbar, sidebar, login). */
+  logoHeight: number;
   favicon: string;
 
   themeMode: ThemeMode; // org-wide default
@@ -61,6 +63,16 @@ export type ThemePreset = {
   radiusMd: string;
   radiusLg: string;
 };
+
+/** Allowed logo height range (px) for the Settings slider. */
+export const LOGO_MIN = 16;
+export const LOGO_MAX = 80;
+
+export function clampLogoHeight(v: unknown): number {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return 32;
+  return Math.min(LOGO_MAX, Math.max(LOGO_MIN, n));
+}
 
 const STATUS_LIGHT = { success: '#16a34a', warning: '#d97706', danger: '#dc2626' };
 const STATUS_DARK = { success: '#22c55e', warning: '#f59e0b', danger: '#f87171' };
@@ -218,6 +230,7 @@ export const DEFAULT_DARK: ThemePalette = { ...SUNRISE.dark };
 export const DEFAULT_SETTINGS: ThemeSettings = {
   orgName: 'LMS',
   logo: '',
+  logoHeight: 32,
   favicon: '',
 
   themeMode: 'light',

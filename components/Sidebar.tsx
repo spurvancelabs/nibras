@@ -178,7 +178,7 @@ export default function Sidebar({
       >
         {/* Brand — same height as the top navbar */}
         <div
-          className={`h-16 flex items-center gap-2.5 px-5 border-b border-border shrink-0 ${
+          className={`min-h-16 py-2 flex items-center gap-2.5 px-5 border-b border-border shrink-0 ${
             collapsed ? 'md:justify-center md:px-0' : ''
           }`}
         >
@@ -186,9 +186,9 @@ export default function Sidebar({
             <Image
               src={logo}
               alt={orgName}
-              width={120}
-              height={28}
-              className={`h-7 w-auto object-contain ${collapsed ? 'md:h-6 md:max-w-[44px]' : ''}`}
+              width={320}
+              height={80}
+              className={`brand-logo ${collapsed ? 'md:h-7 md:max-w-[44px]' : 'md:max-w-[200px]'}`}
             />
           ) : (
             <>

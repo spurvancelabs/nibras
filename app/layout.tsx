@@ -1,7 +1,8 @@
 // =============================================================================
 // FILE: app/layout.tsx
 // Root layout. Reads Settings (MongoDB) and injects the theme as CSS variables:
-//   --color-* (light on :root, dark on .dark), --radius-md/lg, --font-sans
+//   --color-* (light on :root, dark on .dark), --radius-md/lg, --font-sans,
+//   --logo-h (logo size, used by the .brand-logo class in globals.css)
 // and loads the selected Google Font (Poppins by default).
 // =============================================================================
 
@@ -14,7 +15,7 @@ import {
   DEFAULT_DARK,
   type ThemePalette,
 } from '@/models/Setting';
-import { googleFontHref } from '@/lib/theme-config';
+import { googleFontHref, clampLogoHeight } from '@/lib/theme-config';
 
 let getSettings: () => Promise<any>;
 let THEME_SCRIPT = '';
@@ -93,6 +94,7 @@ export default async function RootLayout({
       --radius-md:${css(s.radiusMd, DEFAULT_SETTINGS.radiusMd)};
       --radius-lg:${css(s.radiusLg, DEFAULT_SETTINGS.radiusLg)};
       --font-sans:${css(s.font, DEFAULT_SETTINGS.font)};
+      --logo-h:${clampLogoHeight(s.logoHeight ?? DEFAULT_SETTINGS.logoHeight)}px;
     }`,
   ].join('\n');
 

@@ -13,6 +13,7 @@ import Setting, {
   type ThemeSettings,
   type ThemePalette,
 } from '@/models/Setting';
+import { clampLogoHeight } from '@/lib/theme-config';
 
 function mergePalette(
   base: ThemePalette,
@@ -28,6 +29,7 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
     ...d,
     light: mergePalette(DEFAULT_LIGHT, d.light as Partial<ThemePalette> | undefined),
     dark: mergePalette(DEFAULT_DARK, d.dark as Partial<ThemePalette> | undefined),
+    logoHeight: clampLogoHeight(d.logoHeight ?? DEFAULT_SETTINGS.logoHeight),
     partnerLogos: Array.isArray(d.partnerLogos)
       ? (d.partnerLogos as unknown[]).filter((x): x is string => typeof x === 'string')
       : [],
@@ -62,6 +64,8 @@ export async function updateSettings(
       clean[k] = v; // whole palette replaced
     } else if (k === 'partnerLogos' && Array.isArray(v)) {
       clean[k] = v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').slice(0, 12);
+    } else if (k === 'logoHeight') {
+      clean[k] = clampLogoHeight(v);
     } else if (typeof v === 'string') {
       clean[k] = v;
     }
