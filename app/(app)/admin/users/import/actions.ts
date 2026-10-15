@@ -20,6 +20,7 @@ const rowSchema = z.object({
   role: z.enum(['admin', 'mentor', 'student']),
   program: z.string(),
   password: z.string(),
+  hasExplicitPassword: z.boolean().optional().default(false),
   status: z.enum(['ok', 'error', 'warning']),
   error: z.string().optional(),
   programId: z.string().optional(),
@@ -62,10 +63,14 @@ export type CommitActionResult =
       created: number;
       skipped: number;
       failed: { line: number; email: string; reason: string }[];
-      credentials: { name: string; email: string; password: string }[];
+      credentials: {
+        name: string;
+        email: string;
+        password: string;
+        hasExplicitPassword: boolean;
+      }[];
     }
   | { ok: false; error: string };
-
 export async function commitImportAction(
   raw: unknown
 ): Promise<CommitActionResult> {

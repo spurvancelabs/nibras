@@ -2,7 +2,6 @@
 
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import Avatar from '@/components/Avatar';
 import {
   validateImportAction,
   commitImportAction,
@@ -10,9 +9,10 @@ import {
 import type { ImportRowValidation } from '@/lib/user-import';
 
 const TEMPLATE_CSV =
-  'name,email,role,program\n' +
-  'Jane Doe,jane@example.com,student,Web Development Bootcamp\n' +
-  'John Smith,john@example.com,mentor,\n';
+  'name,email,role,program,password\n' +
+  'Jane Doe,jane@example.com,student,Web Development Bootcamp,\n' +
+  'John Smith,john@example.com,mentor,,CustomPass123\n' +
+  'Sara Ali,sara@example.com,student,,auto\n';
 
 type Phase = 'input' | 'preview' | 'done';
 
@@ -20,7 +20,12 @@ type CommitSuccess = {
   created: number;
   skipped: number;
   failed: { line: number; email: string; reason: string }[];
-  credentials: { name: string; email: string; password: string }[];
+  credentials: {
+    name: string;
+    email: string;
+    password: string;
+    hasExplicitPassword: boolean;
+  }[];
 };
 
 function downloadTemplate() {
@@ -48,6 +53,7 @@ export default function ImportForm() {
   } | null>(null);
   const [sendEmails, setSendEmails] = useState(true);
   const [result, setResult] = useState<CommitSuccess | null>(null);
+  const [revealPasswords, setRevealPasswords] = useState(false);
 
   const [pending, start] = useTransition();
   const [error, setError] = useState('');
@@ -87,6 +93,7 @@ export default function ImportForm() {
           role: r.role,
           program: r.program,
           password: r.password,
+          hasExplicitPassword: r.hasExplicitPassword,
           status: r.status,
           error: r.error,
           programId: r.programId,
@@ -112,6 +119,7 @@ export default function ImportForm() {
     setSummary(null);
     setResult(null);
     setError('');
+    setRevealPasswords(false);
     if (fileRef.current) fileRef.current.value = '';
   }
 
@@ -157,16 +165,24 @@ export default function ImportForm() {
         <div>
           <label className="label">Or paste CSV</label>
           <textarea
-            className="input min-h-[180px] font-mono text-xs"
+            className="input min-h-[200px] font-mono text-xs"
             value={csv}
             onChange={(e) => setCsv(e.target.value)}
             placeholder={TEMPLATE_CSV}
             spellCheck={false}
           />
-          <p className="text-xs text-muted mt-1">
-            Columns: <code>name, email, role, program</code>. Role defaults to{' '}
-            <code>student</code>. Program name is optional — must match an existing program.
-          </p>
+          <div className="text-xs text-muted mt-2 space-y-1">
+            <p>
+              <strong>Required columns:</strong>{' '}
+              <code>name</code>, <code>email</code>.
+            </p>
+            <p>
+              <strong>Optional columns:</strong> <code>role</code> (admin /
+              mentor / student, defaults to student), <code>program</code>{' '}
+              (must match an existing program name), <code>password</code> (min
+              6 chars — leave blank or write <code>auto</code> to auto-generate).
+            </p>
+          </div>
         </div>
 
         <div className="flex justify-end">
@@ -207,13 +223,14 @@ export default function ImportForm() {
         <div className="card p-0 overflow-hidden">
           <div className="max-h-[500px] overflow-y-auto">
             <table className="w-full text-sm">
-              <thead className="bg-bg border-b border-border sticky top-0">
+              <thead className="bg-bg border-b border-border sticky top-0 z-10">
                 <tr className="text-left">
                   <th className="px-3 py-2 font-medium w-12">#</th>
                   <th className="px-3 py-2 font-medium">Name</th>
                   <th className="px-3 py-2 font-medium">Email</th>
                   <th className="px-3 py-2 font-medium">Role</th>
                   <th className="px-3 py-2 font-medium">Program</th>
+                  <th className="px-3 py-2 font-medium">Password</th>
                   <th className="px-3 py-2 font-medium">Status</th>
                 </tr>
               </thead>
@@ -221,24 +238,44 @@ export default function ImportForm() {
                 {rows.map((r) => (
                   <tr key={r.line} className="border-b border-border last:border-0">
                     <td className="px-3 py-2 text-muted">{r.line}</td>
-                    <td className="px-3 py-2 truncate max-w-[160px]">
+                    <td className="px-3 py-2 truncate max-w-[140px]">
                       {r.name || <span className="text-muted italic">—</span>}
                     </td>
-                    <td className="px-3 py-2 truncate max-w-[200px]">
+                    <td className="px-3 py-2 truncate max-w-[180px]">
                       {r.email || <span className="text-muted italic">—</span>}
                     </td>
                     <td className="px-3 py-2">
                       <span className="badge-muted">{r.role}</span>
                     </td>
-                    <td className="px-3 py-2 truncate max-w-[160px] text-muted">
+                    <td className="px-3 py-2 truncate max-w-[140px] text-muted">
                       {r.programName ?? r.program ?? '—'}
+                    </td>
+                    <td className="px-3 py-2 font-mono text-xs">
+                      {r.status === 'error' ? (
+                        <span className="text-muted">—</span>
+                      ) : r.hasExplicitPassword ? (
+                        <span className="text-muted">
+                          {revealPasswords ? r.password : '••••••••'}
+                          <span className="ml-1 text-[10px]">(from CSV)</span>
+                        </span>
+                      ) : (
+                        <span>
+                          {revealPasswords ? r.password : '••••••••'}
+                          <span className="ml-1 text-[10px] text-muted">
+                            (generated)
+                          </span>
+                        </span>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {r.status === 'ok' && (
                         <span className="badge-success">ready</span>
                       )}
                       {r.status === 'warning' && (
-                        <span className="badge-warning" title={r.warnings?.join(' · ')}>
+                        <span
+                          className="badge-warning"
+                          title={r.warnings?.join(' · ')}
+                        >
                           warning
                         </span>
                       )}
@@ -247,7 +284,7 @@ export default function ImportForm() {
                           error
                         </span>
                       )}
-                      {r.status !== 'ok' && r.error && (
+                      {r.error && (
                         <p className="text-xs text-muted mt-1 max-w-[220px]">
                           {r.error}
                         </p>
@@ -265,6 +302,15 @@ export default function ImportForm() {
           </div>
         </div>
 
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={revealPasswords}
+            onChange={(e) => setRevealPasswords(e.target.checked)}
+          />
+          Show passwords
+        </label>
+
         <div className="card space-y-3">
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -272,12 +318,12 @@ export default function ImportForm() {
               checked={sendEmails}
               onChange={(e) => setSendEmails(e.target.checked)}
             />
-            Email each user their temporary password
+            Email each user their credentials
           </label>
           <p className="text-xs text-muted">
             {sendEmails
-              ? 'Emails will be sent in the background. You can also copy passwords from the next screen.'
-              : 'Passwords will only be shown on the next screen — copy them before leaving.'}
+              ? 'Emails will be sent in the background. You can also copy credentials from the next screen.'
+              : 'Credentials will only be shown on the next screen — copy them before leaving.'}
           </p>
         </div>
 
@@ -337,38 +383,47 @@ export default function ImportForm() {
 
         {result.credentials.length > 0 && (
           <div className="card space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <h3 className="font-medium text-sm">
-                Temporary credentials
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  const csv =
-                    'name,email,password\n' +
-                    result.credentials
-                      .map(
-                        (c) =>
-                          `${csvField(c.name)},${csvField(c.email)},${csvField(
-                            c.password
-                          )}`
-                      )
-                      .join('\n');
-                  const blob = new Blob([csv], { type: 'text/csv' });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'lms-import-credentials.csv';
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-                className="text-xs text-muted hover:underline"
-              >
-                Download CSV
-              </button>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <h3 className="font-medium text-sm">Credentials</h3>
+              <div className="flex items-center gap-3">
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    checked={revealPasswords}
+                    onChange={(e) => setRevealPasswords(e.target.checked)}
+                  />
+                  Show
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const csv =
+                      'name,email,password\n' +
+                      result.credentials
+                        .map(
+                          (c) =>
+                            `${csvField(c.name)},${csvField(c.email)},${csvField(
+                              c.password
+                            )}`
+                        )
+                        .join('\n');
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'lms-import-credentials.csv';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                  }}
+                  className="text-xs text-muted hover:underline"
+                >
+                  Download CSV
+                </button>
+              </div>
             </div>
             <p className="text-xs text-muted">
-              Save these now — they won't be shown again.
+              Save these now — they won't be shown again. Test one login before
+              sharing with students.
             </p>
             <div className="max-h-[400px] overflow-y-auto border border-border rounded-md">
               <table className="w-full text-sm">
@@ -389,7 +444,7 @@ export default function ImportForm() {
                         {c.email}
                       </td>
                       <td className="px-3 py-2 font-mono text-xs">
-                        {c.password}
+                        {revealPasswords ? c.password : '••••••••'}
                       </td>
                     </tr>
                   ))}

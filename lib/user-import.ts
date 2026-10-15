@@ -15,15 +15,16 @@ export type ImportRow = {
   name: string;
   email: string;
   role: Role;
-  program: string; // program name from CSV (may be blank)
-  password: string; // generated; shown once on commit
+  program: string;
+  password: string;
+  hasExplicitPassword: boolean;
 };
 
 export type ImportRowValidation = ImportRow & {
   status: 'ok' | 'error' | 'warning';
-  error?: string; // when status is 'error'
-  programId?: string; // resolved on validate
-  programName?: string; // resolved
+  error?: string;
+  programId?: string;
+  programName?: string;
   warnings?: string[];
 };
 
@@ -37,7 +38,12 @@ export type CommitResult =
       created: number;
       skipped: number;
       failed: { line: number; email: string; reason: string }[];
-      credentials: { name: string; email: string; password: string }[];
+      credentials: {
+        name: string;
+        email: string;
+        password: string;
+        hasExplicitPassword: boolean;
+      }[];
     }
   | { ok: false; error: string };
 
@@ -49,17 +55,8 @@ export type ImportSummary = {
 };
 
 // ---------------------------------------------------------------------------
-// CSV parser
+// CSV parser (RFC-4180-lite)
 // ---------------------------------------------------------------------------
-//
-// Supported header (case-insensitive, any order):
-//   name, email, role, program
-//
-// - Quoted fields supported ("Doe, John")
-// - Escaped quotes inside quoted fields ("")
-// - CRLF or LF line endings
-// - Blank lines skipped
-// - Leading/trailing whitespace trimmed
 
 export function parseCsv(input: string): {
   header: string[];
@@ -81,7 +78,7 @@ export function parseCsv(input: string): {
   const rows: Record<string, string>[] = [];
   for (let i = 1; i < records.length; i++) {
     const cells = records[i];
-    if (cells.every((c) => c.trim() === '')) continue; // skip blanks
+    if (cells.every((c) => c.trim() === '')) continue;
     const row: Record<string, string> = {};
     for (let j = 0; j < header.length; j++) {
       row[header[j]] = (cells[j] ?? '').trim();
@@ -91,7 +88,6 @@ export function parseCsv(input: string): {
   return { header, rows };
 }
 
-// Small RFC-4180-ish parser — good enough for admin CSVs
 function parseCsvRecords(text: string): string[][] {
   const records: string[][] = [];
   let row: string[] = [];
@@ -118,7 +114,6 @@ function parseCsvRecords(text: string): string[][] {
         row.push(field);
         field = '';
       } else if (ch === '\n' || ch === '\r') {
-        // handle CRLF: skip \n if we just saw \r
         if (ch === '\r' && text[i + 1] === '\n') i++;
         row.push(field);
         records.push(row);
@@ -129,7 +124,6 @@ function parseCsvRecords(text: string): string[][] {
       }
     }
   }
-  // Flush last field/row if there's content
   if (field.length > 0 || row.length > 0) {
     row.push(field);
     records.push(row);
@@ -138,7 +132,7 @@ function parseCsvRecords(text: string): string[][] {
 }
 
 // ---------------------------------------------------------------------------
-// Password generation
+// Password generation (used when CSV has no password column)
 // ---------------------------------------------------------------------------
 
 const SAFE = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -164,28 +158,24 @@ export async function validateImport(
 
   const { rows, error } = parseCsv(csv);
   if (error) return { ok: false, error };
-
   if (rows.length === 0) return { ok: false, error: 'No data rows found' };
   if (rows.length > 500) return { ok: false, error: 'Max 500 rows per import' };
 
   await db();
 
-  // Preload programs for name lookup
-  const programs = await Program.find({ orgId })
-    .select('_id name')
-    .lean();
+  const programs = await Program.find({ orgId }).select('_id name').lean();
   const programByName = new Map<string, { id: string; name: string }>();
   for (const p of programs) {
-    programByName.set(
-      String(p.name).trim().toLowerCase(),
-      { id: String(p._id), name: p.name as string }
-    );
+    programByName.set(String(p.name).trim().toLowerCase(), {
+      id: String(p._id),
+      name: p.name as string,
+    });
   }
 
-  // Preload existing emails to catch collisions
   const incomingEmails = rows
     .map((r) => (r.email ?? '').toLowerCase().trim())
     .filter(Boolean);
+
   const existingUsers = await User.find({
     orgId,
     email: { $in: incomingEmails },
@@ -201,15 +191,17 @@ export async function validateImport(
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    const line = i + 2; // account for header (line 1)
+    const line = i + 2;
 
     const name = (r.name ?? '').trim();
     const email = (r.email ?? '').trim().toLowerCase();
     const roleRaw = (r.role ?? '').trim().toLowerCase();
     const role: Role = roleRaw ? (roleRaw as Role) : 'student';
     const programRaw = (r.program ?? '').trim();
+    const explicitPassword = (r.password ?? '').trim();
 
-    const password = generatePassword();
+    const hasExplicitPassword = explicitPassword.length > 0;
+    const password = hasExplicitPassword ? explicitPassword : generatePassword();
 
     const base: ImportRow = {
       line,
@@ -218,6 +210,7 @@ export async function validateImport(
       role,
       program: programRaw,
       password,
+      hasExplicitPassword,
     };
 
     // --- errors ---
@@ -258,6 +251,24 @@ export async function validateImport(
       continue;
     }
 
+    // --- explicit password rules ---
+    if (hasExplicitPassword && explicitPassword.length < 6) {
+      validated.push({
+        ...base,
+        status: 'error',
+        error: 'Password must be at least 6 characters',
+      });
+      continue;
+    }
+    if (hasExplicitPassword && explicitPassword.length > 100) {
+      validated.push({
+        ...base,
+        status: 'error',
+        error: 'Password must be 100 characters or fewer',
+      });
+      continue;
+    }
+
     // --- warnings ---
     const warnings: string[] = [];
     let programId: string | undefined;
@@ -269,7 +280,9 @@ export async function validateImport(
         programId = found.id;
         programName = found.name;
       } else {
-        warnings.push(`Program "${programRaw}" not found — user will be created without it`);
+        warnings.push(
+          `Program "${programRaw}" not found — user will be created without it`
+        );
       }
     }
 
@@ -301,11 +314,16 @@ export async function commitImport(input: {
   orgId: string;
   rows: ImportRowValidation[];
   sendEmails: boolean;
-  origin: string; // for building login links in emails
+  origin: string;
 }): Promise<CommitResult> {
   await db();
 
-  const created: { name: string; email: string; password: string }[] = [];
+  const created: {
+    name: string;
+    email: string;
+    password: string;
+    hasExplicitPassword: boolean;
+  }[] = [];
   const failed: { line: number; email: string; reason: string }[] = [];
   let skipped = 0;
 
@@ -317,6 +335,20 @@ export async function commitImport(input: {
 
     try {
       const passwordHash = await bcrypt.hash(row.password, 10);
+
+      // Verify the hash round-trips. If this fails, something is deeply wrong
+      // (corrupt password string, encoding issue, etc.) — surface it instead
+      // of silently creating a user who can't log in.
+      const verified = await bcrypt.compare(row.password, passwordHash);
+      if (!verified) {
+        failed.push({
+          line: row.line,
+          email: row.email,
+          reason: 'Password hash verification failed — user not created',
+        });
+        continue;
+      }
+
       const doc = await User.create({
         orgId: input.orgId,
         name: row.name,
@@ -328,7 +360,6 @@ export async function commitImport(input: {
         programIds: row.programId ? [row.programId] : [],
       });
 
-      // Sync reverse side: add student/mentor to program
       if (row.programId) {
         const field = row.role === 'mentor' ? 'mentors' : 'students';
         await Program.updateOne(
@@ -341,6 +372,7 @@ export async function commitImport(input: {
         name: row.name,
         email: row.email,
         password: row.password,
+        hasExplicitPassword: row.hasExplicitPassword,
       });
     } catch (e) {
       const err = e as { code?: number; message?: string };
@@ -355,9 +387,7 @@ export async function commitImport(input: {
     }
   }
 
-  // Optionally send welcome emails
   if (input.sendEmails && created.length > 0) {
-    // Fire in the background so the admin doesn't wait for 100 SMTP calls
     void sendWelcomeEmails(input.orgId, created, input.origin);
   }
 
@@ -376,7 +406,12 @@ export async function commitImport(input: {
 
 async function sendWelcomeEmails(
   orgId: string,
-  users: { name: string; email: string; password: string }[],
+  users: {
+    name: string;
+    email: string;
+    password: string;
+    hasExplicitPassword: boolean;
+  }[],
   origin: string
 ): Promise<void> {
   const { sendEmail } = await import('./email');
@@ -384,7 +419,6 @@ async function sendWelcomeEmails(
   const settings = await getSettings();
   const loginUrl = `${origin.replace(/\/$/, '')}/login`;
 
-  // Chunk to avoid hammering Resend
   const chunks: typeof users[] = [];
   for (let i = 0; i < users.length; i += 10) {
     chunks.push(users.slice(i, i + 10));
@@ -401,7 +435,9 @@ async function sendWelcomeEmails(
             `Hi ${u.name},\n\n` +
             `An account has been created for you.\n\n` +
             `Email: ${u.email}\n` +
-            `Temporary password: ${u.password}\n\n` +
+            (u.hasExplicitPassword
+              ? `Password: use the one provided by your administrator.\n\n`
+              : `Temporary password: ${u.password}\n\n`) +
             `Please sign in and change your password from your profile.`,
           link: loginUrl,
           ctaLabel: 'Sign in',
