@@ -1,6 +1,7 @@
 // =============================================================================
 // FILE: app/(app)/admin/settings/SettingsForm.tsx
 // Admin → Settings form (client). Branding (logo + logo size), theme presets, light/dark palettes,
+// member ID rules (required switch + default format),
 // typography, landing-page content (hero + Trusted by logos), contact.
 // =============================================================================
 
@@ -17,6 +18,7 @@ import {
   clampLogoHeight,
   type ThemePreset,
 } from '@/lib/theme-config';
+import { formatMemberId, validateMemberIdFormat } from '@/lib/member-id';
 
 const LOGO_SIZE_PRESETS = [
   { label: 'Small', value: 24 },
@@ -32,11 +34,12 @@ import type {
 
 type Props = { initial: ThemeSettings };
 
-type Tab = 'branding' | 'landing' | 'light' | 'dark' | 'typography' | 'contact';
+type Tab = 'branding' | 'landing' | 'members' | 'light' | 'dark' | 'typography' | 'contact';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'branding', label: 'Branding' },
   { id: 'landing', label: 'Landing page' },
+  { id: 'members', label: 'Members' },
   { id: 'light', label: 'Light theme' },
   { id: 'dark', label: 'Dark theme' },
   { id: 'typography', label: 'Typography & Shape' },
@@ -446,6 +449,61 @@ export default function SettingsForm({ initial }: Props) {
               accept="image/png,image/svg+xml,image/webp"
             />
           )}
+        </section>
+      )}
+
+      {tab === 'members' && (
+        <section className="card space-y-5">
+          <div>
+            <h2 className="font-semibold">Member IDs</h2>
+            <p className="text-xs text-muted">
+              Used when creating users manually and in CSV import. You can also change these from the Users pages.
+            </p>
+          </div>
+
+          <label className="flex items-center justify-between gap-4 p-3.5 rounded-md border border-border bg-bg cursor-pointer">
+            <span>
+              <span className="block text-sm font-medium">Require a member ID for every user</span>
+              <span className="block text-xs text-muted">
+                When off, the member ID field is optional.
+              </span>
+            </span>
+            <span className="relative inline-flex shrink-0">
+              <input
+                type="checkbox"
+                className="peer sr-only"
+                checked={!!form.memberIdRequired}
+                onChange={(e) => setField('memberIdRequired', e.target.checked)}
+              />
+              <span className="w-11 h-6 rounded-full bg-border peer-checked:bg-primary transition-colors" />
+              <span className="absolute left-0.5 top-0.5 w-5 h-5 rounded-full bg-surface shadow transition-transform peer-checked:translate-x-5" />
+            </span>
+          </label>
+
+          <div>
+            <label className="label" htmlFor="memberIdFormat">Default ID format</label>
+            <input
+              id="memberIdFormat"
+              className="input font-mono uppercase"
+              value={form.memberIdFormat}
+              maxLength={40}
+              onChange={(e) => setField('memberIdFormat', e.target.value.toUpperCase().replace(/\s+/g, ''))}
+              placeholder="MEM-{YYYY}-{####}"
+            />
+            {validateMemberIdFormat(form.memberIdFormat) ? (
+              <p className="text-xs text-danger mt-1">{validateMemberIdFormat(form.memberIdFormat)}</p>
+            ) : (
+              <p className="text-xs text-muted mt-1">
+                Preview:{' '}
+                <span className="font-mono text-text">{formatMemberId(form.memberIdFormat, 1)}</span>,{' '}
+                <span className="font-mono text-text">{formatMemberId(form.memberIdFormat, 2)}</span>, …
+              </p>
+            )}
+            <p className="text-[11px] text-muted mt-2">
+              Tokens: <code>{'{YYYY}'}</code> year · <code>{'{YY}'}</code> short year · <code>{'{MM}'}</code> month ·{' '}
+              <code>{'{DD}'}</code> day · <code>{'{###}'}</code> running number (number of # = digits)
+            </p>
+          </div>
         </section>
       )}
 

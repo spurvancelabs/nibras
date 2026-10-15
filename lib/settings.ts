@@ -30,6 +30,11 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
     light: mergePalette(DEFAULT_LIGHT, d.light as Partial<ThemePalette> | undefined),
     dark: mergePalette(DEFAULT_DARK, d.dark as Partial<ThemePalette> | undefined),
     logoHeight: clampLogoHeight(d.logoHeight ?? DEFAULT_SETTINGS.logoHeight),
+    memberIdRequired: d.memberIdRequired === true,
+    memberIdFormat:
+      typeof d.memberIdFormat === 'string' && d.memberIdFormat.trim()
+        ? d.memberIdFormat
+        : DEFAULT_SETTINGS.memberIdFormat,
     partnerLogos: Array.isArray(d.partnerLogos)
       ? (d.partnerLogos as unknown[]).filter((x): x is string => typeof x === 'string')
       : [],
@@ -64,6 +69,8 @@ export async function updateSettings(
       clean[k] = v; // whole palette replaced
     } else if (k === 'partnerLogos' && Array.isArray(v)) {
       clean[k] = v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').slice(0, 12);
+    } else if (k === 'memberIdRequired') {
+      clean[k] = v === true;
     } else if (k === 'logoHeight') {
       clean[k] = clampLogoHeight(v);
     } else if (typeof v === 'string') {

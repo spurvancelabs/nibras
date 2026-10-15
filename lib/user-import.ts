@@ -1,3 +1,13 @@
+// =============================================================================
+// FILE: lib/user-import.ts
+// CSV bulk import: parse → validate (preview) → commit.
+// NEW: optional `memberId` column (also accepts "member_id" / "member id").
+//      - IDs from the CSV are checked for duplicates (file + database)
+//      - empty IDs can be auto-generated from a format, e.g. NIB-{YYYY}-{####}
+//      - if member IDs are required and a row has none (and no format), the
+//        row is an error until a format is supplied
+// =============================================================================
+
 import 'server-only';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -5,10 +15,19 @@ import { db } from './db';
 import User from '@/models/User';
 import Program from '@/models/Program';
 import type { Role } from '@/lib/constants';
+import {
+  normalizeMemberId,
+  validateMemberIdFormat,
+  memberIdPattern,
+  generateMemberIds,
+  MEMBER_ID_MAX,
+} from './member-id';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+export type MemberIdSource = 'csv' | 'generated' | 'none';
 
 export type ImportRow = {
   line: number; // 1-based, excludes header
@@ -18,6 +37,8 @@ export type ImportRow = {
   program: string;
   password: string;
   hasExplicitPassword: boolean;
+  memberId: string;
+  memberIdSource: MemberIdSource;
 };
 
 export type ImportRowValidation = ImportRow & {
@@ -28,9 +49,29 @@ export type ImportRowValidation = ImportRow & {
   warnings?: string[];
 };
 
+export type ImportSummary = {
+  total: number;
+  ok: number;
+  errors: number;
+  warnings: number;
+  /** Valid rows that still have no member ID (UI offers to generate). */
+  missingMemberIds: number;
+  /** How many IDs were generated from the format in this run. */
+  generatedMemberIds: number;
+  hasMemberIdColumn: boolean;
+};
+
 export type ValidateResult =
   | { ok: true; rows: ImportRowValidation[]; summary: ImportSummary }
   | { ok: false; error: string };
+
+export type ImportCredential = {
+  name: string;
+  email: string;
+  password: string;
+  hasExplicitPassword: boolean;
+  memberId: string;
+};
 
 export type CommitResult =
   | {
@@ -38,36 +79,33 @@ export type CommitResult =
       created: number;
       skipped: number;
       failed: { line: number; email: string; reason: string }[];
-      credentials: {
-        name: string;
-        email: string;
-        password: string;
-        hasExplicitPassword: boolean;
-      }[];
+      credentials: ImportCredential[];
     }
   | { ok: false; error: string };
-
-export type ImportSummary = {
-  total: number;
-  ok: number;
-  errors: number;
-  warnings: number;
-};
 
 // ---------------------------------------------------------------------------
 // CSV parser (RFC-4180-lite)
 // ---------------------------------------------------------------------------
+
+/** Header aliases → canonical column name. */
+function canonicalHeader(h: string): string {
+  const k = h.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  if (k === 'memberid' || k === 'member' || k === 'memberno' || k === 'membernumber') return 'memberid';
+  if (k === 'fullname') return 'name';
+  if (k === 'emailaddress') return 'email';
+  return h.trim().toLowerCase();
+}
 
 export function parseCsv(input: string): {
   header: string[];
   rows: Record<string, string>[];
   error?: string;
 } {
-  const text = input.replace(/^\uFEFF/, ''); // strip BOM
+  const text = input.replace(/^﻿/, ''); // strip BOM
   const records = parseCsvRecords(text);
   if (records.length === 0) return { header: [], rows: [], error: 'No data found' };
 
-  const header = records[0].map((h) => h.trim().toLowerCase());
+  const header = records[0].map(canonicalHeader);
   const required = ['name', 'email'];
   for (const r of required) {
     if (!header.includes(r)) {
@@ -152,14 +190,21 @@ const ALLOWED_ROLES: Role[] = ['admin', 'mentor', 'student'];
 
 export async function validateImport(
   orgId: string,
-  csv: string
+  csv: string,
+  opts: { memberIdFormat?: string; memberIdRequired?: boolean } = {}
 ): Promise<ValidateResult> {
   if (!csv.trim()) return { ok: false, error: 'CSV is empty' };
 
-  const { rows, error } = parseCsv(csv);
+  const { header, rows, error } = parseCsv(csv);
   if (error) return { ok: false, error };
   if (rows.length === 0) return { ok: false, error: 'No data rows found' };
   if (rows.length > 500) return { ok: false, error: 'Max 500 rows per import' };
+
+  const format = (opts.memberIdFormat ?? '').trim();
+  if (format) {
+    const fmtErr = validateMemberIdFormat(format);
+    if (fmtErr) return { ok: false, error: `Member ID format: ${fmtErr}` };
+  }
 
   await db();
 
@@ -186,7 +231,21 @@ export async function validateImport(
     existingUsers.map((u) => String(u.email).toLowerCase())
   );
 
+  // Member IDs from the CSV that already exist in the DB
+  const incomingMemberIds = rows
+    .map((r) => normalizeMemberId(r.memberid))
+    .filter(Boolean);
+  const existingMemberRows = incomingMemberIds.length
+    ? await User.find({ orgId, memberId: { $in: incomingMemberIds } })
+        .select('memberId')
+        .lean()
+    : [];
+  const existingMemberIds = new Set(
+    existingMemberRows.map((u) => normalizeMemberId(String(u.memberId ?? '')))
+  );
+
   const seenInBatch = new Set<string>();
+  const seenMemberIds = new Set<string>();
   const validated: ImportRowValidation[] = [];
 
   for (let i = 0; i < rows.length; i++) {
@@ -198,7 +257,9 @@ export async function validateImport(
     const roleRaw = (r.role ?? '').trim().toLowerCase();
     const role: Role = roleRaw ? (roleRaw as Role) : 'student';
     const programRaw = (r.program ?? '').trim();
-    const explicitPassword = (r.password ?? '').trim();
+    const explicitPasswordRaw = (r.password ?? '').trim();
+    const explicitPassword = explicitPasswordRaw.toLowerCase() === 'auto' ? '' : explicitPasswordRaw;
+    const memberId = normalizeMemberId(r.memberid);
 
     const hasExplicitPassword = explicitPassword.length > 0;
     const password = hasExplicitPassword ? explicitPassword : generatePassword();
@@ -211,6 +272,8 @@ export async function validateImport(
       program: programRaw,
       password,
       hasExplicitPassword,
+      memberId,
+      memberIdSource: memberId ? 'csv' : 'none',
     };
 
     // --- errors ---
@@ -269,6 +332,23 @@ export async function validateImport(
       continue;
     }
 
+    // --- member ID from CSV ---
+    if (memberId) {
+      if (memberId.length > MEMBER_ID_MAX) {
+        validated.push({ ...base, status: 'error', error: `Member ID longer than ${MEMBER_ID_MAX} characters` });
+        continue;
+      }
+      if (existingMemberIds.has(memberId)) {
+        validated.push({ ...base, status: 'error', error: `Member ID ${memberId} is already in use` });
+        continue;
+      }
+      if (seenMemberIds.has(memberId)) {
+        validated.push({ ...base, status: 'error', error: 'Duplicate member ID within this file' });
+        continue;
+      }
+      seenMemberIds.add(memberId);
+    }
+
     // --- warnings ---
     const warnings: string[] = [];
     let programId: string | undefined;
@@ -296,11 +376,47 @@ export async function validateImport(
     });
   }
 
+  // --- auto-generate member IDs for valid rows without one ---
+  let generatedMemberIds = 0;
+  if (format) {
+    const needing = validated.filter((v) => v.status !== 'error' && !v.memberId);
+    if (needing.length) {
+      const re = new RegExp(memberIdPattern(format));
+      const dbMatches = await User.find({ orgId, memberId: { $regex: re } })
+        .select('memberId')
+        .lean();
+      const existing = [
+        ...dbMatches.map((u) => String(u.memberId ?? '')),
+        ...Array.from(seenMemberIds),
+      ];
+      const ids = generateMemberIds(format, needing.length, existing);
+      needing.forEach((row, i) => {
+        row.memberId = ids[i];
+        row.memberIdSource = 'generated';
+      });
+      generatedMemberIds = ids.length;
+    }
+  }
+
+  // --- required member IDs ---
+  if (opts.memberIdRequired) {
+    for (const row of validated) {
+      if (row.status !== 'error' && !row.memberId) {
+        row.status = 'error';
+        row.error = 'Member ID is required — add a memberId column or set a format';
+        row.warnings = undefined;
+      }
+    }
+  }
+
   const summary: ImportSummary = {
     total: validated.length,
     ok: validated.filter((r) => r.status === 'ok').length,
     errors: validated.filter((r) => r.status === 'error').length,
     warnings: validated.filter((r) => r.status === 'warning').length,
+    missingMemberIds: validated.filter((r) => r.status !== 'error' && !r.memberId).length,
+    generatedMemberIds,
+    hasMemberIdColumn: header.includes('memberid'),
   };
 
   return { ok: true, rows: validated, summary };
@@ -318,12 +434,7 @@ export async function commitImport(input: {
 }): Promise<CommitResult> {
   await db();
 
-  const created: {
-    name: string;
-    email: string;
-    password: string;
-    hasExplicitPassword: boolean;
-  }[] = [];
+  const created: ImportCredential[] = [];
   const failed: { line: number; email: string; reason: string }[] = [];
   let skipped = 0;
 
@@ -349,6 +460,8 @@ export async function commitImport(input: {
         continue;
       }
 
+      const memberId = normalizeMemberId(row.memberId);
+
       const doc = await User.create({
         orgId: input.orgId,
         name: row.name,
@@ -358,6 +471,7 @@ export async function commitImport(input: {
         status: 'active',
         avatar: '',
         programIds: row.programId ? [row.programId] : [],
+        ...(memberId ? { memberId } : {}),
       });
 
       if (row.programId) {
@@ -373,15 +487,18 @@ export async function commitImport(input: {
         email: row.email,
         password: row.password,
         hasExplicitPassword: row.hasExplicitPassword,
+        memberId,
       });
     } catch (e) {
-      const err = e as { code?: number; message?: string };
+      const err = e as { code?: number; message?: string; keyPattern?: Record<string, unknown> };
       failed.push({
         line: row.line,
         email: row.email,
         reason:
           err.code === 11000
-            ? 'Email already exists'
+            ? err.keyPattern?.memberId
+              ? 'Member ID already in use'
+              : 'Email already exists'
             : err.message ?? 'Unknown error',
       });
     }
@@ -406,12 +523,7 @@ export async function commitImport(input: {
 
 async function sendWelcomeEmails(
   orgId: string,
-  users: {
-    name: string;
-    email: string;
-    password: string;
-    hasExplicitPassword: boolean;
-  }[],
+  users: ImportCredential[],
   origin: string
 ): Promise<void> {
   const { sendEmail } = await import('./email');
@@ -434,6 +546,7 @@ async function sendWelcomeEmails(
           body:
             `Hi ${u.name},\n\n` +
             `An account has been created for you.\n\n` +
+            (u.memberId ? `Member ID: ${u.memberId}\n` : '') +
             `Email: ${u.email}\n` +
             (u.hasExplicitPassword
               ? `Password: use the one provided by your administrator.\n\n`

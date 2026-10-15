@@ -1,7 +1,8 @@
 // =============================================================================
 // FILE: app/(app)/admin/settings/actions.ts
 // Server action used by SettingsForm to validate (zod) and save Settings.
-// Includes the new palette keys (heroBg, accent), landing-page fields and logo size.
+// Includes the new palette keys (heroBg, accent), landing-page fields, logo size
+// and member ID rules (memberIdRequired, memberIdFormat).
 // =============================================================================
 
 'use server';
@@ -10,6 +11,7 @@ import { z } from 'zod';
 import { requireRole } from '@/lib/auth-helpers';
 import { updateSettings } from '@/lib/settings';
 import { DEFAULT_LIGHT } from '@/lib/theme-config';
+import { DEFAULT_MEMBER_ID_FORMAT, validateMemberIdFormat } from '@/lib/member-id';
 
 const color = z.string().min(1).max(200);
 
@@ -73,6 +75,17 @@ const schema = z.object({
     .max(12, 'Maximum 12 partner logos')
     .optional()
     .default([]),
+
+  // Members
+  memberIdRequired: z.boolean().optional().default(false),
+  memberIdFormat: z
+    .string()
+    .max(40)
+    .optional()
+    .default(DEFAULT_MEMBER_ID_FORMAT)
+    .refine((v) => validateMemberIdFormat(v) === null, {
+      message: 'Member ID format is invalid — e.g. MEM-{YYYY}-{####}',
+    }),
 });
 
 export type SettingsActionResult =

@@ -1,6 +1,6 @@
 // =============================================================================
 // FILE: models/Setting.ts
-// Mongoose model for global Settings (theme + landing content).
+// Mongoose model for global Settings (theme + landing content + member ID rules).
 // Types/defaults live in lib/theme-config.ts and are re-exported from here.
 // =============================================================================
 
@@ -66,6 +66,10 @@ const SettingSchema = new Schema(
     partnersTitle: { type: String, default: DEFAULT_SETTINGS.partnersTitle },
     partnersText: { type: String, default: '' },
     partnerLogos: { type: [String], default: [] },
+
+    // Members
+    memberIdRequired: { type: Boolean, default: false },
+    memberIdFormat: { type: String, default: DEFAULT_SETTINGS.memberIdFormat },
 
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },

@@ -7,6 +7,8 @@
 // Shared theme types, defaults and presets.
 // Client-safe (no mongoose import) so SettingsForm can use the presets directly.
 
+import { DEFAULT_MEMBER_ID_FORMAT } from './member-id';
+
 export type ThemePalette = {
   primary: string;
   primaryFg: string;
@@ -51,6 +53,12 @@ export type ThemeSettings = {
   partnersTitle: string;
   partnersText: string;
   partnerLogos: string[];
+
+  // Members
+  /** When true, every user must have a member ID (manual + import). */
+  memberIdRequired: boolean;
+  /** Default format for generated member IDs, e.g. NIB-{YYYY}-{####}. */
+  memberIdFormat: string;
 };
 
 export type ThemePreset = {
@@ -250,4 +258,7 @@ export const DEFAULT_SETTINGS: ThemeSettings = {
   partnersTitle: 'Trusted by',
   partnersText: '',
   partnerLogos: [],
+
+  memberIdRequired: false,
+  memberIdFormat: DEFAULT_MEMBER_ID_FORMAT,
 };

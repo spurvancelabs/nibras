@@ -7,10 +7,14 @@ import {
   validateImport,
   commitImport,
   type ImportRowValidation,
+  type ValidateResult,
+  type CommitResult,
 } from '@/lib/user-import';
 
 const validateSchema = z.object({
   csv: z.string().min(1).max(500_000), // ~500 KB
+  memberIdFormat: z.string().optional(),
+  memberIdRequired: z.boolean().optional(),
 });
 
 const rowSchema = z.object({
@@ -21,6 +25,8 @@ const rowSchema = z.object({
   program: z.string(),
   password: z.string(),
   hasExplicitPassword: z.boolean().optional().default(false),
+  memberId: z.string().optional(),
+  memberIdSource: z.enum(['csv', 'generated', 'none']).optional(),
   status: z.enum(['ok', 'error', 'warning']),
   error: z.string().optional(),
   programId: z.string().optional(),
@@ -33,13 +39,7 @@ const commitSchema = z.object({
   sendEmails: z.boolean(),
 });
 
-export type ValidateActionResult =
-  | {
-      ok: true;
-      rows: ImportRowValidation[];
-      summary: { total: number; ok: number; errors: number; warnings: number };
-    }
-  | { ok: false; error: string };
+export type ValidateActionResult = ValidateResult;
 
 export async function validateImportAction(
   raw: unknown
@@ -51,26 +51,14 @@ export async function validateImportAction(
     return { ok: false, error: 'Invalid input' };
   }
 
-  const res = await validateImport(admin.orgId, parsed.data.csv);
-  if (!res.ok) return res;
-
-  return { ok: true, rows: res.rows, summary: res.summary };
+  const res = await validateImport(admin.orgId, parsed.data.csv, {
+    memberIdFormat: parsed.data.memberIdFormat,
+    memberIdRequired: parsed.data.memberIdRequired,
+  });
+  return res;
 }
 
-export type CommitActionResult =
-  | {
-      ok: true;
-      created: number;
-      skipped: number;
-      failed: { line: number; email: string; reason: string }[];
-      credentials: {
-        name: string;
-        email: string;
-        password: string;
-        hasExplicitPassword: boolean;
-      }[];
-    }
-  | { ok: false; error: string };
+export type CommitActionResult = CommitResult;
 export async function commitImportAction(
   raw: unknown
 ): Promise<CommitActionResult> {
