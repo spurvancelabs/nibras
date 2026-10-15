@@ -1,8 +1,16 @@
+// =============================================================================
+// FILE: app/(app)/queries/new/page.tsx
+// "Ask a question" page (students only). Optional ?sessionId= links the thread
+// to a session. Data logic unchanged.
+// =============================================================================
+
+import Link from 'next/link';
 import { requireAuth } from '@/lib/auth-helpers';
 import { db } from '@/lib/db';
 import Program from '@/models/Program';
 import Session from '@/models/Session';
 import QueryForm from '../QueryForm';
+import { PageHeader, EmptyNote, Icons } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,8 +24,17 @@ export default async function NewQueryPage({
 
   if (user.role !== 'student') {
     return (
-      <div className="card text-sm text-muted">
-        Only students can start a query thread. Mentors can reply from the thread.
+      <div className="max-w-lg mx-auto bg-surface border border-border rounded-[var(--radius-lg)]">
+        <EmptyNote
+          icon={Icons.chat}
+          title="Only students can start a query thread."
+          text="Mentors can reply from the thread."
+          action={
+            <Link href="/queries" className="btn-outline text-sm">
+              Back to queries
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -45,17 +62,21 @@ export default async function NewQueryPage({
   }
 
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div>
-        <h1 className="text-2xl font-bold">Ask a question</h1>
-        <p className="text-sm text-muted">
-          Your mentors will be able to reply. First to reply is your assigned mentor.
-        </p>
-      </div>
+    <div className="space-y-6 max-w-3xl">
+      <PageHeader
+        back={{ href: '/queries', label: 'All queries' }}
+        eyebrow="Queries"
+        title="Ask a question"
+        subtitle="Your mentors will be able to reply. First to reply is your assigned mentor."
+      />
 
       {programs.length === 0 ? (
-        <div className="card text-sm text-muted">
-          You're not enrolled in any program yet.
+        <div className="bg-surface border border-border rounded-[var(--radius-lg)]">
+          <EmptyNote
+            icon={Icons.programs}
+            title="You're not enrolled in any program yet."
+            text="Ask your admin to add you to a program."
+          />
         </div>
       ) : (
         <QueryForm
