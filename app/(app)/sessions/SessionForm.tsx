@@ -12,6 +12,7 @@ import { saveSessionAction, deleteSessionAction } from './actions';
 import { SESSION_STATUSES } from '@/lib/constants';
 import type { SessionListItem } from '@/lib/sessions';
 import { Alert, Icons } from '@/components/ui';
+import { toLocalDateTimeInput, localInputToIso, timeZoneLabel } from '@/lib/time';
 
 type ProgramOption = { id: string; name: string };
 
@@ -23,18 +24,14 @@ type Props = {
   canDelete?: boolean;
 };
 
+// Times are entered and shown in the app time zone (Pakistan by default),
+// whatever time zone the user's own computer is set to.
 function isoToLocal(iso: string | undefined): string {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
-    d.getHours()
-  )}:${pad(d.getMinutes())}`;
+  return toLocalDateTimeInput(iso);
 }
 
 function localToIso(local: string): string {
-  if (!local) return '';
-  return new Date(local).toISOString();
+  return localInputToIso(local);
 }
 
 function FormSection({
@@ -201,7 +198,7 @@ export default function SessionForm({ programs, mentors, viewerRole, initial, ca
           </FormSection>
 
           {/* Schedule */}
-          <FormSection icon={Icons.clock} title="Schedule" hint="Shown in each viewer's local time.">
+          <FormSection icon={Icons.clock} title="Schedule" hint={`Times are in ${timeZoneLabel()} for everyone.`}>
             <div className="grid sm:grid-cols-2 gap-4">
               <div>
                 <label className="label" htmlFor="sf-start">Starts at</label>

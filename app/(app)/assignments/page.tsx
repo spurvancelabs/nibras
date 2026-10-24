@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/auth-helpers';
 import { listAssignments } from '@/lib/assignments';
 import type { SubmissionState } from '@/lib/constants';
 import { PageHeader, Badge, EmptyNote, Icons } from '@/components/ui';
+import { formatDateTime } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,13 +17,7 @@ type AssignmentRow = Awaited<ReturnType<typeof listAssignments>>[number];
 type ViewerRole = 'admin' | 'mentor' | 'student';
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTime(iso);
 }
 
 /** "in 3 days" / "2 hours ago" — display only */

@@ -8,6 +8,7 @@
 // Client-safe (no mongoose import) so SettingsForm can use the presets directly.
 
 import { DEFAULT_MEMBER_ID_FORMAT } from './member-id';
+import { GENERATED_PRESETS, HIGH_CONTRAST } from './theme-presets';
 
 export type ThemePalette = {
   primary: string;
@@ -59,12 +60,51 @@ export type ThemeSettings = {
   memberIdRequired: boolean;
   /** Default format for generated member IDs, e.g. NIB-{YYYY}-{####}. */
   memberIdFormat: string;
+
+  // Theme extras
+  /** Id of the preset last applied (for highlighting in the picker). */
+  themePresetId: string;
+  /** Let each user pick a personal theme on their Profile page. */
+  allowUserThemes: boolean;
+
+  // Features (switch whole sections on/off)
+  featureQuizzes: boolean;
+  featureCertificates: boolean;
+  featureSyllabus: boolean;
+  featureQueries: boolean;
+  featureGradebook: boolean;
+
+  // Announcement banner shown at the top of every page
+  announcementEnabled: boolean;
+  announcementText: string;
+  announcementTone: AnnouncementTone;
+  announcementLink: string;
+  announcementAudience: 'all' | 'student' | 'mentor' | 'admin';
+
+  /** Short note shown under the sign-in form. */
+  loginNotice: string;
+
+  // Certificates (defaults; programs can override the title/signatory)
+  certIssuerName: string;
+  certSignatoryName: string;
+  certSignatoryTitle: string;
+  certSignatureImage: string;
+  certPrefix: string;
+  certFooterText: string;
+
+  // Maintenance (royal admins only): students & mentors see a notice page
+  maintenanceMode: boolean;
+  maintenanceMessage: string;
 };
+
+export type AnnouncementTone = 'info' | 'success' | 'warning' | 'danger';
 
 export type ThemePreset = {
   id: string;
   name: string;
   description: string;
+  /** Group shown in the theme picker. */
+  category?: string;
   light: ThemePalette;
   dark: ThemePalette;
   font: string;
@@ -120,6 +160,7 @@ export function googleFontHref(font: string): string | null {
 export const THEME_PRESETS: ThemePreset[] = [
   {
     id: 'sunrise',
+    category: 'Signature',
     name: 'Sunrise',
     description: 'Warm cream with ink-black buttons (default)',
     font: FONT_OPTIONS[0].value,
@@ -142,6 +183,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   },
   {
     id: 'ocean',
+    category: 'Signature',
     name: 'Ocean',
     description: 'Clean blue, classic SaaS',
     font: FONT_OPTIONS[1].value,
@@ -164,6 +206,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   },
   {
     id: 'forest',
+    category: 'Signature',
     name: 'Forest',
     description: 'Calm green, academic feel',
     font: FONT_OPTIONS[2].value,
@@ -186,6 +229,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   },
   {
     id: 'plum',
+    category: 'Signature',
     name: 'Plum',
     description: 'Creative violet',
     font: FONT_OPTIONS[3].value,
@@ -208,6 +252,7 @@ export const THEME_PRESETS: ThemePreset[] = [
   },
   {
     id: 'coral',
+    category: 'Signature',
     name: 'Coral',
     description: 'Energetic orange-red',
     font: FONT_OPTIONS[0].value,
@@ -229,6 +274,21 @@ export const THEME_PRESETS: ThemePreset[] = [
     },
   },
 ];
+
+// The original 5 stay first (ids unchanged), then 110+ generated presets.
+THEME_PRESETS.push(
+  ...GENERATED_PRESETS.filter((g) => !THEME_PRESETS.some((p) => p.id === g.id)),
+  HIGH_CONTRAST
+);
+
+/** Category names in display order. */
+export const THEME_CATEGORY_NAMES: string[] = Array.from(
+  new Set(THEME_PRESETS.map((p) => p.category ?? 'Other'))
+);
+
+export function findPreset(id: string | null | undefined): ThemePreset | undefined {
+  return id ? THEME_PRESETS.find((p) => p.id === id) : undefined;
+}
 
 const SUNRISE = THEME_PRESETS[0];
 
@@ -261,4 +321,44 @@ export const DEFAULT_SETTINGS: ThemeSettings = {
 
   memberIdRequired: false,
   memberIdFormat: DEFAULT_MEMBER_ID_FORMAT,
+
+  themePresetId: 'sunrise',
+  allowUserThemes: true,
+
+  featureQuizzes: true,
+  featureCertificates: true,
+  featureSyllabus: true,
+  featureQueries: true,
+  featureGradebook: true,
+
+  announcementEnabled: false,
+  announcementText: '',
+  announcementTone: 'info',
+  announcementLink: '',
+  announcementAudience: 'all',
+
+  loginNotice: '',
+
+  certIssuerName: '',
+  certSignatoryName: '',
+  certSignatoryTitle: 'Program Director',
+  certSignatureImage: '',
+  certPrefix: 'CERT',
+  certFooterText: '',
+
+  maintenanceMode: false,
+  maintenanceMessage: 'We are doing some maintenance. Please check back shortly.',
 };
+
+/** Boolean settings and their defaults (used when reading old documents). */
+export const BOOLEAN_SETTING_DEFAULTS = {
+  allowUserThemes: true,
+  featureQuizzes: true,
+  featureCertificates: true,
+  featureSyllabus: true,
+  featureQueries: true,
+  featureGradebook: true,
+  announcementEnabled: false,
+  maintenanceMode: false,
+  memberIdRequired: false,
+} as const;

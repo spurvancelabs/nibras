@@ -1,9 +1,12 @@
-import mongoose from 'mongoose';
+// =============================================================================
+// FILE: lib/db.ts
+// SECURITY FIX: the database password was hard-coded here as a fallback.
+// It is now read ONLY from the MONGODB_URI environment variable.
+// -> Make sure MONGODB_URI is set in Vercel (Settings → Environment Variables)
+//    BEFORE deploying, then rotate the old database password in MongoDB Atlas.
+// =============================================================================
 
-const MONGODB_URI = process.env.MONGODB_URI;
-if (!MONGODB_URI) {
-  throw new Error('Missing MONGODB_URI in environment');
-}
+import mongoose from 'mongoose';
 
 type Cached = {
   conn: typeof mongoose | null;
@@ -18,15 +21,20 @@ const cached: Cached =
 export async function db(): Promise<typeof mongoose> {
   if (cached.conn) return cached.conn;
 
+  const uri = process.env.MONGODB_URI;
+  if (!uri) {
+    // Checked at call time (not import time) so `next build` still works.
+    throw new Error('Missing MONGODB_URI in environment');
+  }
+
   if (!cached.promise) {
-    cached.promise = mongoose.connect(MONGODB_URI!, {
+    cached.promise = mongoose.connect(uri, {
       bufferCommands: false,
       // Vercel-optimized connection pooling
-      maxPoolSize: 10, // Maintain up to 10 socket connections
-      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
-      socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-      family: 4, // Use IPv4, skip trying IPv6
-      // Additional production optimizations for stability
+      maxPoolSize: 10,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 45000,
+      family: 4,
       retryWrites: true,
       w: 'majority',
     });

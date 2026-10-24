@@ -228,3 +228,21 @@
    .bg-surface .bg-primary .bg-bg .text-primary .text-primary-fg .text-text
    .text-success .text-warning .text-danger .border-border .text-muted
    .grid / .grid-cols-* / .animate-pulse */
+/* -------------------------------------------------------------------------
+   Printing certificates (NEW): only the .print-area is printed, edge to
+   edge on A4 landscape. Everything else on the page is hidden.
+   ------------------------------------------------------------------------- */
+@media print {
+  @page { size: A4 landscape; margin: 0; }
+  html, body { background: #fff !important; }
+  body * { visibility: hidden !important; }
+  .print-area, .print-area * { visibility: visible !important; }
+  .print-area {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 297mm !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print { display: none !important; }
+}

@@ -9,6 +9,7 @@ import { requireAuth } from '@/lib/auth-helpers';
 import { listQueries } from '@/lib/queries';
 import Avatar from '@/components/Avatar';
 import { PageHeader, Badge, EmptyNote, Icons } from '@/components/ui';
+import { formatDate } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,7 +23,7 @@ function fmtRelative(iso: string) {
   if (hrs < 24) return `${hrs}h ago`;
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso);
 }
 
 const FILTERS = [

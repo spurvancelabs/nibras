@@ -3,7 +3,7 @@ import { db } from './db';
 import Notification from '@/models/Notification';
 import User from '@/models/User';
 import type { NotificationType } from '@/lib/constants';
-import { sendEmail } from './email';
+import { sendEmail, sendEmails } from './email';
 
 export type NotificationItem = {
   id: string;
@@ -47,7 +47,7 @@ export async function notify(input: {
   link?: string;
   email?: boolean;
   dedupeKey?: string;
-}): Promise<void> {
+}): Promise<boolean> {
   await db();
 
   const doc: Record<string, unknown> = {
@@ -65,9 +65,9 @@ export async function notify(input: {
   } catch (err: unknown) {
     // Unique-index violation means we already sent this — ignore.
     const code = (err as { code?: number })?.code;
-    if (code === 11000) return;
+    if (code === 11000) return false;
     console.error('[notify] failed', err);
-    return;
+    return false;
   }
 
   if (input.email) {
@@ -85,6 +85,7 @@ export async function notify(input: {
       });
     }
   }
+  return true;
 }
 
 /** Bulk version — one DB write per user, emails optional per-user. */
@@ -123,8 +124,12 @@ export async function notifyMany(input: {
     chunks.push(userIds.slice(i, i + 20));
   }
 
+  // In-app notifications first (fast), then ONE batched email send for the
+  // users who actually got a new notification (respects dedupe keys and
+  // Resend's rate limit — parallel single sends were being rejected).
+  const created: string[] = [];
   for (const chunk of chunks) {
-    await Promise.all(
+    const res = await Promise.all(
       chunk.map((userId) =>
         notify({
           orgId: input.orgId,
@@ -133,13 +138,33 @@ export async function notifyMany(input: {
           title: input.title,
           body: input.body,
           link: input.link,
-          email: input.email,
+          email: false,
           dedupeKey: input.dedupeKeyPrefix
             ? `${input.dedupeKeyPrefix}:${userId}`
             : undefined,
-        })
+        }).then((ok) => (ok ? userId : null))
       )
     );
+    for (const id of res) if (id) created.push(id);
+  }
+
+  if (input.email && created.length) {
+    const users = (await User.find({ orgId: input.orgId, _id: { $in: created }, status: 'active' })
+      .select('email')
+      .lean()) as { email?: string }[];
+    const r = await sendEmails(
+      users
+        .filter((u) => !!u.email)
+        .map((u) => ({
+          to: u.email as string,
+          subject: input.title,
+          heading: input.title,
+          body: input.body ?? '',
+          link: input.link,
+          ctaLabel: 'Open in LMS',
+        }))
+    );
+    if (r.failed.length) console.error(`[notifyMany] ${r.failed.length} emails failed`);
   }
 }
 

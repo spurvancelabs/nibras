@@ -1,7 +1,10 @@
 // =============================================================================
-// FILE: app/(app)/admin/users/UsersTable.tsx   (NEW FILE)
+// FILE: app/(app)/admin/users/UsersTable.tsx
 // Users table (client): row selection, bulk actions (activate / disable /
 // change role / delete with confirmation) and CSV export.
+// NEW: "Assign member IDs" and "Sign out everywhere" bulk actions, admin-role
+// grant needs confirmation, last sign-in column, dates in the app time zone
+// (no server/browser mismatch), CSV export safe against Excel formula injection.
 // Table on md+, cards on phones.
 // =============================================================================
 
@@ -12,7 +15,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Avatar from '@/components/Avatar';
 import { ROLES, type Role } from '@/lib/constants';
-import { bulkUpdateUsersAction, deleteUsersAction } from './actions';
+import {
+  bulkUpdateUsersAction,
+  deleteUsersAction,
+  assignMemberIdsAction,
+  revokeSessionsAction,
+} from './actions';
+import { formatDate, formatDateTime, formatRelative } from '@/lib/time';
 import { Badge, Alert, EmptyNote, Icons } from '@/components/ui';
 
 export type UserRow = {
@@ -26,6 +35,8 @@ export type UserRow = {
   programNames: string[];
   createdAt: string;
   memberId: string;
+  lastLoginAt: string | null;
+  royal?: boolean;
 };
 
 const ROLE_TONE: Record<Role, 'primary' | 'warning' | 'muted'> = {
@@ -34,20 +45,29 @@ const ROLE_TONE: Record<Role, 'primary' | 'warning' | 'muted'> = {
   student: 'muted',
 };
 
-function csvField(s: string) {
+/** CSV cell, neutralising =, +, -, @ so Excel can't run a formula from a user's name. */
+function csvField(raw: string) {
+  let s = raw ?? '';
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return formatDate(iso);
 }
 
 export default function UsersTable({
   rows,
   currentUserId,
+  memberIdFormat,
+  totalMatching,
+  viewerRoyal = true,
 }: {
   rows: UserRow[];
   currentUserId: string;
+  memberIdFormat: string;
+  totalMatching?: number;
+  viewerRoyal?: boolean;
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -81,15 +101,68 @@ export default function UsersTable({
     setRoleTo('');
   }
 
+  const selectedMissingIds = selectedRows.filter((r) => !r.memberId).map((r) => r.id);
+
   function bulk(patch: { status?: 'active' | 'disabled'; role?: Role }) {
     setMsg(null);
+    let confirmAdmin = false;
+    if (patch.role === 'admin') {
+      confirmAdmin = confirm(
+        `Give FULL ADMIN access to ${selected.size} user${selected.size === 1 ? '' : 's'}? Admins can see and change everything.`
+      );
+      if (!confirmAdmin) return;
+    }
+    if (patch.status === 'disabled' && !confirm(`Disable ${selected.size} user${selected.size === 1 ? '' : 's'}? They will be signed out and can't sign in.`)) {
+      return;
+    }
     start(async () => {
-      const res = await bulkUpdateUsersAction({ ids: Array.from(selected), ...patch });
+      const res = await bulkUpdateUsersAction({ ids: Array.from(selected), ...patch, confirmAdmin });
       if (res.ok) {
         setMsg({
           tone: 'success',
           text: `Updated ${res.updated} user${res.updated === 1 ? '' : 's'}.${res.skippedSelf ? ' Your own account was skipped.' : ''}`,
         });
+        clearSelection();
+        router.refresh();
+      } else {
+        setMsg({ tone: 'error', text: res.error });
+      }
+    });
+  }
+
+  function assignIds() {
+    if (!selectedMissingIds.length) return;
+    if (!confirm(`Give ${selectedMissingIds.length} selected user${selectedMissingIds.length === 1 ? '' : 's'} the next member ID (${memberIdFormat})?`)) return;
+    setMsg(null);
+    start(async () => {
+      const res = await assignMemberIdsAction({ ids: selectedMissingIds, format: memberIdFormat });
+      if (res.ok) {
+        setMsg({
+          tone: res.failed ? 'info' : 'success',
+          text: res.assigned
+            ? `Assigned ${res.assigned} member ID${res.assigned === 1 ? '' : 's'} (${res.first} … ${res.last}).${res.failed ? ` ${res.failed} failed — try again.` : ''}`
+            : 'Nothing to assign.',
+        });
+        clearSelection();
+        router.refresh();
+      } else {
+        setMsg({ tone: 'error', text: res.error });
+      }
+    });
+  }
+
+  function signOutEverywhere() {
+    const ids = Array.from(selected).filter((id) => id !== currentUserId);
+    if (!ids.length) {
+      setMsg({ tone: 'info', text: 'Use the normal Sign out button for your own account.' });
+      return;
+    }
+    if (!confirm(`Sign ${ids.length} user${ids.length === 1 ? '' : 's'} out on every device? They can sign in again with their password.`)) return;
+    setMsg(null);
+    start(async () => {
+      const res = await revokeSessionsAction({ ids });
+      if (res.ok) {
+        setMsg({ tone: 'success', text: `Signed out ${res.updated} user${res.updated === 1 ? '' : 's'} on all devices.` });
         clearSelection();
         router.refresh();
       } else {
@@ -130,15 +203,24 @@ export default function UsersTable({
 
   function exportCsv() {
     const list = selectedRows.length ? selectedRows : rows;
-    const header = 'name,email,member_id,role,status,programs,created';
+    const header = 'name,email,member_id,role,status,programs,created,last_sign_in';
     const body = list
       .map((u) =>
-        [u.name, u.email, u.memberId, u.role, u.status, u.programNames.join('; '), fmtDate(u.createdAt)]
+        [
+          u.name,
+          u.email,
+          u.memberId,
+          u.role,
+          u.status,
+          u.programNames.join('; '),
+          fmtDate(u.createdAt),
+          u.lastLoginAt ? formatDateTime(u.lastLoginAt) : 'never',
+        ]
           .map(csvField)
           .join(',')
       )
       .join('\n');
-    const blob = new Blob([`${header}\n${body}`], { type: 'text/csv' });
+    const blob = new Blob([`\uFEFF${header}\n${body}`], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -183,7 +265,11 @@ export default function UsersTable({
             className="w-4 h-4 accent-[var(--color-primary)]"
           />
           <p className="text-sm font-medium">
-            {selected.size ? `${selected.size} selected` : `${rows.length} user${rows.length === 1 ? '' : 's'}`}
+            {selected.size
+              ? `${selected.size} selected`
+              : totalMatching !== undefined && totalMatching > rows.length
+              ? `${rows.length} of ${totalMatching} users`
+              : `${rows.length} user${rows.length === 1 ? '' : 's'}`}
           </p>
           {selected.size > 0 && (
             <button type="button" onClick={clearSelection} className="text-xs underline opacity-80 hover:opacity-100">
@@ -205,7 +291,7 @@ export default function UsersTable({
                   className="h-9 px-2 rounded-[var(--radius-md)] bg-primary-fg/10 border border-primary-fg/25 text-sm text-primary-fg [&>option]:text-text"
                 >
                   <option value="">Change role…</option>
-                  {ROLES.map((r) => (
+                  {ROLES.filter((r) => viewerRoyal || r !== 'admin').map((r) => (
                     <option key={r} value={r}>{r}</option>
                   ))}
                 </select>
@@ -213,6 +299,12 @@ export default function UsersTable({
                   <BulkButton onClick={() => bulk({ role: roleTo })} disabled={pending}>Apply</BulkButton>
                 )}
               </div>
+              {selectedMissingIds.length > 0 && (
+                <BulkButton onClick={assignIds} disabled={pending}>
+                  Assign member ID{selectedMissingIds.length === 1 ? '' : 's'} ({selectedMissingIds.length})
+                </BulkButton>
+              )}
+              <BulkButton onClick={signOutEverywhere} disabled={pending}>Sign out everywhere</BulkButton>
               <button
                 type="button"
                 onClick={() => setConfirmDelete(true)}
@@ -266,6 +358,7 @@ export default function UsersTable({
         <p className="text-xs text-muted px-1">
           Deleting removes the users from all programs and deletes their submissions, attendance,
           query threads and notifications. Mentors who still run sessions and your own account are skipped.
+          To keep their history, disable them instead.
         </p>
       )}
 
@@ -281,6 +374,7 @@ export default function UsersTable({
                 <th className="px-4 py-3 font-medium">Role</th>
                 <th className="px-4 py-3 font-medium">Programs</th>
                 <th className="px-4 py-3 font-medium">Status</th>
+                <th className="px-4 py-3 font-medium">Last sign-in</th>
                 <th className="px-4 py-3 font-medium">Joined</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -321,6 +415,7 @@ export default function UsersTable({
                     </td>
                     <td className="px-4 py-3">
                       <Badge tone={ROLE_TONE[u.role]}>{u.role}</Badge>
+                      {u.royal && <span className="ml-1" title="Royal admin">👑</span>}
                     </td>
                     <td className="px-4 py-3 max-w-[220px]">
                       {u.programNames.length === 0 ? (
@@ -337,6 +432,13 @@ export default function UsersTable({
                         <Badge tone="success" dot>active</Badge>
                       ) : (
                         <Badge tone="danger" dot>disabled</Badge>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-xs whitespace-nowrap" title={u.lastLoginAt ? formatDateTime(u.lastLoginAt) : undefined}>
+                      {u.lastLoginAt ? (
+                        <span className="text-muted" suppressHydrationWarning>{formatRelative(u.lastLoginAt)}</span>
+                      ) : (
+                        <span className="text-warning">never</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-xs text-muted whitespace-nowrap">{fmtDate(u.createdAt)}</td>
@@ -392,6 +494,9 @@ export default function UsersTable({
                   {u.programNames.length > 0 && (
                     <span className="text-[11px] text-muted">{u.programNames.length} program{u.programNames.length === 1 ? '' : 's'}</span>
                   )}
+                  <span className={`text-[11px] ${u.lastLoginAt ? 'text-muted' : 'text-warning'}`} suppressHydrationWarning>
+                    {u.lastLoginAt ? `signed in ${formatRelative(u.lastLoginAt)}` : 'never signed in'}
+                  </span>
                 </div>
               </Link>
             </li>

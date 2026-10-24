@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import type { NotificationItem } from '@/lib/notifications';
+import { formatDate } from '@/lib/time';
 
 const POLL_MS = 30_000;
 
@@ -22,7 +23,7 @@ function fmtRelative(iso: string) {
   if (hrs < 24) return `${hrs}h`;
   const days = Math.floor(hrs / 24);
   if (days < 30) return `${days}d`;
-  return new Date(iso).toLocaleDateString();
+  return formatDate(iso);
 }
 
 export default function NotificationBell() {

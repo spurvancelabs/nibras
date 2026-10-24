@@ -17,12 +17,72 @@ import NotificationBell from './NotificationBell';
 import Avatar from './Avatar';
 import type { Role } from '@/lib/constants';
 
+export type Features = { quizzes: boolean; certificates: boolean; queries: boolean; gradebook: boolean };
+
 type Props = {
-  user: { name?: string | null; role: Role };
+  user: { name?: string | null; role: Role; royal?: boolean };
   orgName: string;
   logo: string;
+  features?: Features;
+  announcement?: { text: string; tone: 'info' | 'success' | 'warning' | 'danger'; link: string } | null;
+  /** Admin-only warning bar while maintenance mode is on. */
+  maintenance?: boolean;
   children: React.ReactNode;
 };
+
+const BANNER: Record<'info' | 'success' | 'warning' | 'danger', string> = {
+  info: 'bg-hero text-text border-border',
+  success: 'bg-success/12 text-success border-success/30',
+  warning: 'bg-warning/15 text-text border-warning/40',
+  danger: 'bg-danger/12 text-danger border-danger/30',
+};
+
+function Announcement({ a }: { a: NonNullable<Props['announcement']> }) {
+  const [hidden, setHidden] = useState(false);
+  const key = `ann:${a.text.length}:${a.text.slice(0, 40)}`;
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(key) === '1') setHidden(true);
+    } catch {
+      /* storage blocked */
+    }
+  }, [key]);
+  if (hidden) return null;
+  const internal = a.link.startsWith('/');
+  return (
+    <div role="status" className={`mb-5 flex items-start gap-3 px-4 py-3 rounded-[var(--radius-md)] border text-sm ${BANNER[a.tone]}`}>
+      <span aria-hidden>📣</span>
+      <p className="flex-1 min-w-0 whitespace-pre-line">
+        {a.text}
+        {a.link && (
+          <>
+            {' '}
+            {internal ? (
+              <Link href={a.link} className="font-semibold underline underline-offset-2">Open</Link>
+            ) : (
+              <a href={a.link} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">Open</a>
+            )}
+          </>
+        )}
+      </p>
+      <button
+        type="button"
+        aria-label="Dismiss announcement"
+        className="shrink-0 opacity-70 hover:opacity-100"
+        onClick={() => {
+          setHidden(true);
+          try {
+            sessionStorage.setItem(key, '1');
+          } catch {
+            /* ignore */
+          }
+        }}
+      >
+        ✕
+      </button>
+    </div>
+  );
+}
 
 const TITLES: Record<string, string> = {
   dashboard: 'Dashboard',
@@ -35,6 +95,10 @@ const TITLES: Record<string, string> = {
   settings: 'Settings',
   profile: 'Profile',
   notifications: 'Notifications',
+  quizzes: 'Quizzes',
+  certificates: 'Certificates',
+  security: 'Security',
+  verify: 'Verify certificate',
 };
 
 const SUB_TITLES: Record<string, string> = {
@@ -42,6 +106,12 @@ const SUB_TITLES: Record<string, string> = {
   import: 'Import',
   attendance: 'Attendance',
   materials: 'Materials',
+  audit: 'Audit log',
+  results: 'Results',
+  syllabus: 'Syllabus',
+  gradebook: 'Gradebook',
+  edit: 'Edit',
+  take: 'Take quiz',
 };
 
 /** "/admin/users/new" -> { title: "Users", crumb: "New" } */
@@ -54,7 +124,7 @@ function pageTitle(pathname: string) {
   return { title, crumb };
 }
 
-export default function AppShell({ user, orgName, logo, children }: Props) {
+export default function AppShell({ user, orgName, logo, features, announcement, maintenance, children }: Props) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopVisible, setDesktopVisible] = useState(true);
@@ -97,6 +167,8 @@ export default function AppShell({ user, orgName, logo, children }: Props) {
     <div className="min-h-screen flex bg-bg">
       <Sidebar
         role={user.role}
+        royal={user.royal}
+        features={features}
         orgName={orgName}
         logo={logo}
         userName={user.name ?? ''}
@@ -156,7 +228,16 @@ export default function AppShell({ user, orgName, logo, children }: Props) {
 
         {/* ---------------- Page ---------------- */}
         <main className="flex-1 w-full px-4 py-5 sm:px-6 sm:py-6 lg:px-8 lg:py-8">
-          <div className="mx-auto w-full max-w-7xl">{children}</div>
+          <div className="mx-auto w-full max-w-7xl">
+            {maintenance && (
+              <div role="status" className="mb-5 px-4 py-3 rounded-[var(--radius-md)] border border-danger/40 bg-danger/10 text-danger text-sm">
+                <b>Maintenance mode is ON.</b> Students and mentors can&apos;t use the LMS right now. Turn it off in
+                Settings → Sign-in &amp; maintenance.
+              </div>
+            )}
+            {announcement && <Announcement a={announcement} />}
+            {children}
+          </div>
         </main>
       </div>
     </div>

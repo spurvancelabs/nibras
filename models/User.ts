@@ -1,6 +1,10 @@
 // =============================================================================
 // FILE: models/User.ts
-// User model. NEW: optional `memberId` (unique per organization when set).
+// User model.
+// NEW (security, all optional — existing users need NO migration):
+//   sessionVersion    bumped to sign a user out of every device
+//   lastLoginAt/Ip    shown to admins ("never signed in" filter)
+//   passwordChangedAt set when a password is set or reset
 // =============================================================================
 
 import { Schema, model, models, type InferSchemaType } from 'mongoose';
@@ -29,8 +33,23 @@ const UserSchema = new Schema(
     },
     programIds: [{ type: Schema.Types.ObjectId, ref: 'Program' }],
 
-    // NEW — organisation member / roll number. Optional; stored upper-case.
+    // Organisation member / roll number. Optional; stored upper-case.
     memberId: { type: String, trim: true, uppercase: true, maxlength: 40 },
+
+    // --- security (NEW) ---------------------------------------------------
+    // Missing on old documents = 0, which matches sessions issued before this
+    // field existed, so nobody is signed out when this is deployed.
+    sessionVersion: { type: Number, default: 0 },
+    lastLoginAt: { type: Date },
+    lastLoginIp: { type: String, maxlength: 64 },
+    passwordChangedAt: { type: Date },
+
+    // Royal admin: an admin who can manage other admins and see security logs.
+    // Missing on old documents = false.
+    royal: { type: Boolean, default: false },
+
+    // Personal theme (preset id). '' = use the organisation's theme.
+    themePreset: { type: String, default: '', maxlength: 60 },
   },
   { timestamps: true }
 );

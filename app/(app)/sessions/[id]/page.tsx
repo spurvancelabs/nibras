@@ -19,10 +19,13 @@ import Avatar from '@/components/Avatar';
 import Program from '@/models/Program';
 import User from '@/models/User';
 import { db } from '@/lib/db';
+import { listQuizzes } from '@/lib/quizzes';
+import { getSettings } from '@/lib/settings';
 import SessionForm from '../SessionForm';
 import MaterialsPanel from './MaterialsPanel';
 import AttendancePanel from './AttendancePanel';
 import { Panel, SessionStatusBadge, Icons } from '@/components/ui';
+import { formatDayFull, formatTime, isSameLocalDay } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,16 +65,9 @@ export default async function SessionPage({
 
   const start = new Date(session.startsAt);
   const end = new Date(session.endsAt);
-  const fmtDay = (d: Date) =>
-    d.toLocaleDateString(undefined, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-  const fmtTime = (d: Date) =>
-    d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
-  const sameDay = start.toDateString() === end.toDateString();
+  const fmtDay = (d: Date) => formatDayFull(d);
+  const fmtTime = (d: Date) => formatTime(d);
+  const sameDay = isSameLocalDay(start, end);
   const durationMin = Math.max(0, Math.round((+end - +start) / 60000));
   const duration =
     durationMin >= 60
@@ -104,6 +100,10 @@ export default async function SessionPage({
   }
 
   const canJoin = !!session.meetingUrl && session.status === 'scheduled';
+
+  // Quizzes linked to this session (never let this break the page).
+  const quizzesOn = await getSettings().then((st) => st.featureQuizzes !== false).catch(() => false);
+  const sessionQuizzes = quizzesOn ? await listQuizzes(user.orgId, user, { sessionId: session.id }).catch(() => []) : [];
 
   return (
     <div className="space-y-6">
@@ -182,6 +182,34 @@ export default async function SessionPage({
               <p className="text-xs text-muted mt-2">
                 If the video says &quot;unavailable&quot;, the owner must allow embedding.
               </p>
+            </Panel>
+          )}
+
+          {(sessionQuizzes.length > 0 || (canManage && quizzesOn)) && (
+            <Panel title="Quizzes" icon={Icons.check}>
+              {sessionQuizzes.length === 0 ? (
+                <p className="text-sm text-muted">No quizzes for this session yet.</p>
+              ) : (
+                <ul className="divide-y divide-border -my-2">
+                  {sessionQuizzes.map((q) => (
+                    <li key={q.id}>
+                      <Link href={`/quizzes/${q.id}`} className="flex items-center justify-between gap-3 py-2.5 text-sm hover:underline">
+                        <span className="min-w-0 truncate font-medium">{q.title}</span>
+                        <span className="text-xs text-muted shrink-0">
+                          {q.questionCount} questions
+                          {q.my?.bestPercent !== undefined && q.my?.bestPercent !== null ? ` · best ${q.my.bestPercent}%` : ''}
+                          {canManage ? ` · ${q.status}` : ''}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {canManage && (
+                <Link href={`/quizzes/new?program=${session.programId}&session=${session.id}`} className="mt-3 inline-flex text-sm text-primary underline">
+                  + New quiz for this session
+                </Link>
+              )}
             </Panel>
           )}
 

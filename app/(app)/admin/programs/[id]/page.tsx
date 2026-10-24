@@ -14,6 +14,7 @@ import ProgramForm from '../ProgramForm';
 import MembersPicker from './MembersPicker';
 import ProgramQuickActions from './ProgramQuickActions';
 import { Badge, Alert, Icons } from '@/components/ui';
+import { formatDate } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,11 +26,7 @@ const STATUS_TONE: Record<string, 'success' | 'muted' | 'warning'> = {
 
 function fmtDay(iso: string | null | undefined) {
   if (!iso) return null;
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatDate(iso);
 }
 
 export default async function ProgramPage({
@@ -102,6 +99,13 @@ export default async function ProgramPage({
             {program.description && (
               <p className="mt-2 text-sm text-muted max-w-2xl line-clamp-3">{program.description}</p>
             )}
+            <div className="mt-4 flex flex-wrap gap-2 text-sm">
+              <Link href={`/programs/${program.id}`} className="inline-flex items-center h-8 px-3 rounded-full bg-surface/80 hover:bg-surface font-medium">Program page →</Link>
+              <Link href={`/programs/${program.id}/syllabus`} className="inline-flex items-center h-8 px-3 rounded-full bg-surface/80 hover:bg-surface">Syllabus</Link>
+              <Link href={`/programs/${program.id}/gradebook`} className="inline-flex items-center h-8 px-3 rounded-full bg-surface/80 hover:bg-surface">Gradebook</Link>
+              <Link href={`/quizzes?program=${program.id}`} className="inline-flex items-center h-8 px-3 rounded-full bg-surface/80 hover:bg-surface">Quizzes</Link>
+              <Link href={`/programs/${program.id}/certificates`} className="inline-flex items-center h-8 px-3 rounded-full bg-surface/80 hover:bg-surface">Certificates</Link>
+            </div>
           </div>
 
           <ProgramQuickActions

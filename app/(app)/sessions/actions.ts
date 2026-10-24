@@ -14,6 +14,7 @@ import { isProgramActive } from '@/lib/programs';
 import { SESSION_STATUSES } from '@/models/Session';
 import { Types } from 'mongoose';
 import Program from '@/models/Program';
+import { auditBy } from '@/lib/audit';
 
 const urlOrEmpty = z
   .string()
@@ -169,6 +170,7 @@ export async function deleteSessionAction(raw: unknown): Promise<ActionResult> {
 
   const res = await deleteSession(user.orgId, parsed.data.id);
   if (!res.ok) return res;
+  await auditBy(user, 'session.delete', existing.title, [], { sessionId: parsed.data.id, programId: existing.programId });
 
   revalidatePath('/sessions');
   revalidatePath('/dashboard');

@@ -9,6 +9,7 @@
 
 import { useMemo, useState, useTransition } from 'react';
 import CloudinaryUpload from '@/components/CloudinaryUpload';
+import ThemePresetPicker from '@/components/ThemePresetPicker';
 import { saveSettings } from './actions';
 import {
   FONT_OPTIONS,
@@ -32,9 +33,11 @@ import type {
   ThemeMode,
 } from '@/models/Setting';
 
-type Props = { initial: ThemeSettings };
+type Props = { initial: ThemeSettings; canMaintenance?: boolean };
 
-type Tab = 'branding' | 'landing' | 'members' | 'light' | 'dark' | 'typography' | 'contact';
+type Tab =
+  | 'branding' | 'landing' | 'members' | 'light' | 'dark' | 'typography' | 'contact'
+  | 'features' | 'announcement' | 'certificates' | 'signin';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'branding', label: 'Branding' },
@@ -44,6 +47,10 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'dark', label: 'Dark theme' },
   { id: 'typography', label: 'Typography & Shape' },
   { id: 'contact', label: 'Contact' },
+  { id: 'features', label: 'Features' },
+  { id: 'announcement', label: 'Announcement' },
+  { id: 'certificates', label: 'Certificates' },
+  { id: 'signin', label: 'Sign-in & maintenance' },
 ];
 
 const PALETTE_FIELDS: { key: keyof ThemePalette; label: string }[] = [
@@ -67,7 +74,7 @@ function samePalette(a: ThemePalette, b: ThemePalette) {
   );
 }
 
-export default function SettingsForm({ initial }: Props) {
+export default function SettingsForm({ initial, canMaintenance = false }: Props) {
   const [form, setForm] = useState<ThemeSettings>(initial);
   const [tab, setTab] = useState<Tab>('branding');
   const [pending, startTransition] = useTransition();
@@ -93,6 +100,7 @@ export default function SettingsForm({ initial }: Props) {
       font: p.font,
       radiusMd: p.radiusMd,
       radiusLg: p.radiusLg,
+      themePresetId: p.id,
     }));
     setMessage({ kind: 'ok', text: `“${p.name}” applied — click Save settings to publish it.` });
   }
@@ -140,40 +148,25 @@ export default function SettingsForm({ initial }: Props) {
 
       {/* Theme presets */}
       <section className="card space-y-3">
-        <div>
-          <h2 className="font-semibold">Theme presets</h2>
-          <p className="text-xs text-muted">
-            One click fills the light & dark palettes, font and corner radius. You can fine-tune afterwards.
-          </p>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div>
+            <h2 className="font-semibold">Theme presets</h2>
+            <p className="text-xs text-muted">
+              One click fills the light &amp; dark palettes, font and corner radius. Every preset is checked for readable
+              contrast in both modes. You can fine-tune afterwards.
+            </p>
+          </div>
+          <label className="flex items-center gap-2 text-sm shrink-0 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.allowUserThemes}
+              onChange={(e) => setField('allowUserThemes', e.target.checked)}
+              className="w-4 h-4 accent-[var(--color-primary)]"
+            />
+            Let users pick a personal theme
+          </label>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-          {THEME_PRESETS.map((p) => {
-            const active = p.id === activePresetId;
-            return (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => applyPreset(p)}
-                aria-pressed={active}
-                className={`text-left rounded-lg border p-2 transition ${
-                  active ? 'border-primary ring-2 ring-primary/30' : 'border-border hover:border-primary'
-                }`}
-              >
-                <div className="flex h-12 overflow-hidden rounded-md">
-                  <span className="flex-[3]" style={{ background: p.light.heroBg }} />
-                  <span className="flex-1" style={{ background: p.light.accent }} />
-                  <span className="flex-1" style={{ background: p.light.primary }} />
-                  <span className="flex-1" style={{ background: p.dark.bg }} />
-                </div>
-                <p className="mt-2 text-sm font-medium">
-                  {p.name}
-                  {p.id === 'sunrise' && <span className="ml-1 text-[10px] text-muted">default</span>}
-                </p>
-                <p className="text-[11px] text-muted leading-snug">{p.description}</p>
-              </button>
-            );
-          })}
-        </div>
+        <ThemePresetPicker value={activePresetId} onSelect={(p) => p && applyPreset(p)} />
       </section>
 
       {/* Org-wide default theme mode */}
@@ -564,6 +557,167 @@ export default function SettingsForm({ initial }: Props) {
                 placeholder="16px"
               />
             </div>
+          </div>
+        </section>
+      )}
+
+      {tab === 'features' && (
+        <section className="card space-y-3">
+          <div>
+            <h2 className="font-semibold">Features</h2>
+            <p className="text-xs text-muted">Turn whole sections on or off. Turning one off hides it from menus; no data is deleted.</p>
+          </div>
+          {(
+            [
+              ['featureQuizzes', 'Quizzes', 'Timed quizzes for programs and sessions, with auto-grading.'],
+              ['featureCertificates', 'Certificates', 'Issue certificates when students complete a program; public verification page.'],
+              ['featureSyllabus', 'Syllabus', 'Week-by-week syllabus on each program page.'],
+              ['featureGradebook', 'Gradebook', 'Marks for every student across assignments and quizzes, with CSV export.'],
+              ['featureQueries', 'Queries', 'Students can ask mentors questions.'],
+            ] as const
+          ).map(([key, label, hint]) => (
+            <label key={key} className="flex items-start justify-between gap-4 p-3 rounded-[var(--radius-md)] border border-border cursor-pointer hover:bg-hero/40">
+              <span>
+                <span className="block text-sm font-medium">{label}</span>
+                <span className="block text-xs text-muted">{hint}</span>
+              </span>
+              <input
+                type="checkbox"
+                checked={form[key]}
+                onChange={(e) => setField(key, e.target.checked)}
+                className="mt-1 w-4 h-4 accent-[var(--color-primary)]"
+              />
+            </label>
+          ))}
+        </section>
+      )}
+
+      {tab === 'announcement' && (
+        <section className="card space-y-4">
+          <div>
+            <h2 className="font-semibold">Announcement banner</h2>
+            <p className="text-xs text-muted">A short message at the top of every page — e.g. a schedule change or a holiday.</p>
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input
+              type="checkbox"
+              checked={form.announcementEnabled}
+              onChange={(e) => setField('announcementEnabled', e.target.checked)}
+              className="w-4 h-4 accent-[var(--color-primary)]"
+            />
+            Show the banner
+          </label>
+          <div>
+            <label className="label">Message</label>
+            <textarea
+              className="input min-h-[72px]"
+              maxLength={280}
+              value={form.announcementText}
+              onChange={(e) => setField('announcementText', e.target.value)}
+              placeholder="Lecture 3 moves to Sunday 8 pm this week."
+            />
+            <p className="text-xs text-muted mt-1">{form.announcementText.length}/280</p>
+          </div>
+          <div className="grid sm:grid-cols-3 gap-4">
+            <div>
+              <label className="label">Style</label>
+              <select className="input" value={form.announcementTone} onChange={(e) => setField('announcementTone', e.target.value as ThemeSettings['announcementTone'])}>
+                <option value="info">Info</option>
+                <option value="success">Good news</option>
+                <option value="warning">Warning</option>
+                <option value="danger">Urgent</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Who sees it</label>
+              <select className="input" value={form.announcementAudience} onChange={(e) => setField('announcementAudience', e.target.value as ThemeSettings['announcementAudience'])}>
+                <option value="all">Everyone</option>
+                <option value="student">Students only</option>
+                <option value="mentor">Mentors only</option>
+                <option value="admin">Admins only</option>
+              </select>
+            </div>
+            <div>
+              <label className="label">Link (optional)</label>
+              <input className="input" value={form.announcementLink} onChange={(e) => setField('announcementLink', e.target.value)} placeholder="/quizzes or https://…" />
+            </div>
+          </div>
+        </section>
+      )}
+
+      {tab === 'certificates' && (
+        <section className="card space-y-4">
+          <div>
+            <h2 className="font-semibold">Certificates</h2>
+            <p className="text-xs text-muted">Defaults for every certificate. Each program can override the title and signatory.</p>
+          </div>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div>
+              <label className="label">Issued by</label>
+              <input className="input" value={form.certIssuerName} onChange={(e) => setField('certIssuerName', e.target.value)} placeholder={form.orgName} />
+            </div>
+            <div>
+              <label className="label">Certificate number prefix</label>
+              <input className="input font-mono uppercase" maxLength={12} value={form.certPrefix} onChange={(e) => setField('certPrefix', e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))} />
+              <p className="text-xs text-muted mt-1">e.g. {(form.certPrefix || 'CERT')}-2026-7Q4K-9XW2</p>
+            </div>
+            <div>
+              <label className="label">Signatory name</label>
+              <input className="input" value={form.certSignatoryName} onChange={(e) => setField('certSignatoryName', e.target.value)} placeholder="e.g. Ayesha Khan" />
+            </div>
+            <div>
+              <label className="label">Signatory title</label>
+              <input className="input" value={form.certSignatoryTitle} onChange={(e) => setField('certSignatoryTitle', e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="label">Signature image (optional, transparent PNG works best)</label>
+            <CloudinaryUpload value={form.certSignatureImage} onChange={(url) => setField('certSignatureImage', url)} label="Upload signature" />
+          </div>
+          <div>
+            <label className="label">Footer text (optional)</label>
+            <input className="input" maxLength={200} value={form.certFooterText} onChange={(e) => setField('certFooterText', e.target.value)} placeholder="Verify this certificate at …/verify" />
+          </div>
+        </section>
+      )}
+
+      {tab === 'signin' && (
+        <section className="card space-y-4">
+          <div>
+            <label className="label">Note on the sign-in page (optional)</label>
+            <textarea
+              className="input min-h-[64px]"
+              maxLength={300}
+              value={form.loginNotice}
+              onChange={(e) => setField('loginNotice', e.target.value)}
+              placeholder="Your password is your WhatsApp number in the format 92XXXXXXXXXX."
+            />
+          </div>
+          <div className={`rounded-[var(--radius-md)] border p-4 space-y-3 ${form.maintenanceMode ? 'border-danger/50 bg-danger/5' : 'border-border'}`}>
+            <div>
+              <h3 className="text-sm font-semibold">Maintenance mode</h3>
+              <p className="text-xs text-muted">
+                Students and mentors see a maintenance message instead of the app. Admins can still use everything.
+                {!canMaintenance && ' Only a royal admin can change this.'}
+              </p>
+            </div>
+            <label className="flex items-center gap-2 text-sm cursor-pointer">
+              <input
+                type="checkbox"
+                disabled={!canMaintenance}
+                checked={form.maintenanceMode}
+                onChange={(e) => setField('maintenanceMode', e.target.checked)}
+                className="w-4 h-4 accent-[var(--color-primary)]"
+              />
+              Maintenance mode is ON
+            </label>
+            <textarea
+              className="input min-h-[64px]"
+              maxLength={300}
+              disabled={!canMaintenance}
+              value={form.maintenanceMessage}
+              onChange={(e) => setField('maintenanceMessage', e.target.value)}
+            />
           </div>
         </section>
       )}

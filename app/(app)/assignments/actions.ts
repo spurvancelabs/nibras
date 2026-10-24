@@ -21,6 +21,8 @@ import { deleteCloudinaryAsset } from '@/lib/cloudinary-server';
 import { notify, notifyMany } from '@/lib/notifications';
 import Program from '@/models/Program';
 import User from '@/models/User';
+import { formatDateTime } from '@/lib/time';
+import { auditBy } from '@/lib/audit';
 
 const attachmentSchema = z.object({
   url: z.string().min(1).max(1000),
@@ -139,13 +141,7 @@ export async function saveAssignmentAction(raw: unknown): Promise<ActionResult> 
     .lean();
   const studentIds = (program?.students ?? []).map(String);
   if (studentIds.length > 0) {
-    const dueLabel = new Date(data.dueAt).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    const dueLabel = formatDateTime(data.dueAt);
     await notifyMany({
       orgId: user.orgId,
       userIds: studentIds,
@@ -190,6 +186,7 @@ export async function deleteAssignmentAction(raw: unknown): Promise<ActionResult
 
   const res = await deleteAssignment(user.orgId, parsed.data.id);
   if (!res.ok) return res;
+  await auditBy(user, 'assignment.delete', `Assignment ${parsed.data.id} deleted`, [], { assignmentId: parsed.data.id });
 
   revalidatePath('/assignments');
   revalidatePath('/dashboard');
@@ -284,6 +281,10 @@ export async function gradeSubmissionAction(raw: unknown): Promise<ActionResult>
     gradedBy: user.id,
   });
   if (!res.ok) return res;
+  await auditBy(user, 'grade.update', `${assignment.title}: ${parsed.data.marks}/${assignment.maxMarks}`, [temp.studentId], {
+    assignmentId: assignment.id,
+    submissionId: parsed.data.submissionId,
+  });
 
   // Notify the student
   await notify({
@@ -332,6 +333,10 @@ export async function ungradeSubmissionAction(raw: unknown): Promise<ActionResul
 
   const res = await ungradeSubmission(user.orgId, parsed.data.submissionId);
   if (!res.ok) return res;
+  await auditBy(user, 'grade.update', `${assignment.title}: grade removed`, [temp.studentId], {
+    assignmentId: assignment.id,
+    submissionId: parsed.data.submissionId,
+  });
 
   revalidatePath(`/assignments/${assignment.id}`);
   revalidatePath('/assignments');

@@ -12,6 +12,7 @@
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 import { requireRole } from '@/lib/auth-helpers';
+import { auditBy } from '@/lib/audit';
 import {
   createProgram,
   updateProgram,
@@ -76,6 +77,7 @@ export async function saveProgramAction(raw: unknown): Promise<ActionResult> {
     });
     if (!res.ok) return res;
 
+    await auditBy(admin, 'program.update', `${parsed.data.name} · ${parsed.data.status}`, [], { programId: parsed.data.id });
     revalidatePath('/admin/programs');
     revalidatePath(`/admin/programs/${parsed.data.id}`);
     return { ok: true, id: parsed.data.id };
@@ -92,6 +94,7 @@ export async function saveProgramAction(raw: unknown): Promise<ActionResult> {
   });
   if (!res.ok) return res;
 
+  await auditBy(admin, 'program.create', parsed.data.name, [], { programId: res.id });
   revalidatePath('/admin/programs');
   return { ok: true, id: res.id };
 }
@@ -104,6 +107,7 @@ export async function deleteProgramAction(raw: unknown): Promise<ActionResult> {
 
   const res = await deleteProgram(admin.orgId, parsed.data.id);
   if (!res.ok) return res;
+  await auditBy(admin, 'program.delete', `Program ${parsed.data.id} deleted`, [], { programId: parsed.data.id });
 
   revalidatePath('/admin/programs');
   revalidatePath('/admin/users');
@@ -125,6 +129,13 @@ export async function setMembersAction(raw: unknown): Promise<ActionResult> {
     parsed.data.userIds
   );
   if (!res.ok) return res;
+  await auditBy(
+    admin,
+    'program.members',
+    `${parsed.data.userIds.length} ${parsed.data.role}${parsed.data.userIds.length === 1 ? '' : 's'} set`,
+    parsed.data.userIds.slice(0, 500),
+    { programId: parsed.data.programId, role: parsed.data.role }
+  );
 
   revalidatePath('/admin/programs');
   revalidatePath(`/admin/programs/${parsed.data.programId}`);

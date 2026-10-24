@@ -23,6 +23,7 @@ import {
   ProgressRing,
   Icons,
 } from '@/components/ui';
+import { formatDateTime } from '@/lib/time';
 
 type Props = {
   assignmentId: string;
@@ -226,7 +227,7 @@ export default function StudentSubmission({
             <div className="space-y-4">
               <p className="inline-flex flex-wrap items-center gap-2 text-xs text-muted">
                 {Icons.clock}
-                Submitted {new Date(submission.submittedAt).toLocaleString()}
+                Submitted {formatDateTime(submission.submittedAt)}
                 {submission.isLate && (
                   <span className="px-2 py-0.5 rounded-full bg-danger/10 text-danger font-semibold">late</span>
                 )}

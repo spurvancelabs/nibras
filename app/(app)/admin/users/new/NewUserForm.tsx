@@ -4,6 +4,8 @@
 // NEW: role cards, member ID (+ Generate, + required switch & format),
 //      password generator / show / copy, optional welcome email,
 //      success screen with "Add another" / "Open user".
+// SECURITY: shared password policy (min 8) and an unbiased generator;
+//      confirmation before creating an admin.
 // =============================================================================
 
 'use client';
@@ -16,10 +18,13 @@ import { createUserAction, nextMemberIdAction } from '../actions';
 import { ROLES, type Role } from '@/lib/constants';
 import MemberIdControls from '../MemberIdControls';
 import { Alert, Icons } from '@/components/ui';
+import { generatePassword, validatePassword, PASSWORD_MIN } from '@/lib/password';
 
 type Props = {
   memberIdRequired: boolean;
   memberIdFormat: string;
+  /** Only royal admins may create admins. */
+  canCreateAdmins?: boolean;
 };
 
 const ROLE_INFO: Record<Role, { label: string; hint: string }> = {
@@ -28,11 +33,8 @@ const ROLE_INFO: Record<Role, { label: string; hint: string }> = {
   admin: { label: 'Admin', hint: 'Full access to everything' },
 };
 
-const SAFE = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-function randomPassword(len = 10) {
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => SAFE[b % SAFE.length]).join('');
+function randomPassword() {
+  return generatePassword(12);
 }
 
 const EMPTY = {
@@ -44,7 +46,7 @@ const EMPTY = {
   memberId: '',
 };
 
-export default function NewUserForm({ memberIdRequired, memberIdFormat }: Props) {
+export default function NewUserForm({ memberIdRequired, memberIdFormat, canCreateAdmins = true }: Props) {
   const router = useRouter();
   const [form, setForm] = useState(EMPTY);
   const [sendEmail, setSendEmail] = useState(true);
@@ -73,6 +75,14 @@ export default function NewUserForm({ memberIdRequired, memberIdFormat }: Props)
     setError('');
     if (required && !form.memberId.trim()) {
       setError('Member ID is required — type one or click Generate.');
+      return;
+    }
+    const pwErr = validatePassword(form.password, { email: form.email });
+    if (pwErr) {
+      setError(pwErr + '.');
+      return;
+    }
+    if (form.role === 'admin' && !confirm(`Create ${form.name || 'this user'} as a FULL ADMIN? Admins can see and change everything.`)) {
       return;
     }
     startTransition(async () => {
@@ -172,18 +182,21 @@ export default function NewUserForm({ memberIdRequired, memberIdFormat }: Props)
           <div className="grid grid-cols-3 gap-2">
             {ROLES.map((r) => {
               const active = form.role === r;
+              const blocked = r === 'admin' && !canCreateAdmins;
               return (
                 <label
                   key={r}
-                  className={`flex flex-col gap-0.5 p-3 rounded-[var(--radius-md)] border cursor-pointer transition ${
-                    active ? 'border-primary bg-hero ring-1 ring-primary' : 'border-border hover:bg-hero/50'
-                  }`}
+                  title={blocked ? 'Only a royal admin can create admins' : undefined}
+                  className={`flex flex-col gap-0.5 p-3 rounded-[var(--radius-md)] border transition ${
+                    blocked ? 'opacity-45 cursor-not-allowed border-border' : 'cursor-pointer'
+                  } ${active ? 'border-primary bg-hero ring-1 ring-primary' : 'border-border hover:bg-hero/50'}`}
                 >
                   <input
                     type="radio"
                     name="role"
                     value={r}
                     checked={active}
+                    disabled={blocked}
                     onChange={() => setForm({ ...form, role: r })}
                     className="sr-only"
                   />
@@ -284,10 +297,10 @@ export default function NewUserForm({ memberIdRequired, memberIdFormat }: Props)
                 className="input font-mono pr-11"
                 type={showPassword ? 'text' : 'password'}
                 required
-                minLength={6}
+                minLength={PASSWORD_MIN}
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder="min 6 characters"
+                placeholder={`min ${PASSWORD_MIN} characters`}
                 autoComplete="new-password"
               />
               <button

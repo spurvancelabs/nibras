@@ -22,6 +22,7 @@ import {
   DownloadIcon,
   Icons,
 } from '@/components/ui';
+import { formatDateTime } from '@/lib/time';
 
 type Props = {
   assignmentId: string;
@@ -31,13 +32,7 @@ type Props = {
 };
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTime(iso);
 }
 
 export default function SubmissionsList({

@@ -17,6 +17,10 @@ type Props = {
   logo?: string;
   contactEmail?: string;
   supportUrl?: string;
+  /** Admin-defined note under the form (Settings → Sign-in). */
+  notice?: string;
+  /** Came here after changing the password. */
+  passwordChanged?: boolean;
 };
 
 export default function LoginForm({
@@ -24,6 +28,8 @@ export default function LoginForm({
   logo = '',
   contactEmail = '',
   supportUrl = '',
+  notice = '',
+  passwordChanged = false,
 }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -44,7 +50,11 @@ export default function LoginForm({
     });
 
     if (!res || res.error) {
-      setError('Invalid email or password');
+      setError(
+        res?.error && /too many/i.test(res.error)
+          ? 'Too many sign-in attempts. Please wait 15 minutes and try again.'
+          : 'Invalid email or password'
+      );
       setLoading(false);
       return;
     }
@@ -137,6 +147,11 @@ export default function LoginForm({
               <p className="text-sm text-muted">Use the account your admin created for you.</p>
             </div>
 
+            {passwordChanged && !error && (
+              <div role="status" className="px-3.5 py-3 rounded-[var(--radius-md)] bg-success/10 text-success text-sm">
+                Password changed. Sign in with your new password.
+              </div>
+            )}
             {error && (
               <div
                 role="alert"
@@ -217,6 +232,11 @@ export default function LoginForm({
               {loading ? 'Signing in…' : 'Sign in'}
             </button>
 
+            {notice && (
+              <div className="rounded-[var(--radius-md)] border border-border px-4 py-3 text-xs text-text leading-relaxed whitespace-pre-line">
+                {notice}
+              </div>
+            )}
             <div className="rounded-[var(--radius-md)] bg-hero px-4 py-3 text-xs text-muted leading-relaxed">
               Accounts are created by your admin.
               {contactEmail && (

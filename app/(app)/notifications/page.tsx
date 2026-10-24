@@ -2,17 +2,12 @@ import Link from 'next/link';
 import { requireAuth } from '@/lib/auth-helpers';
 import { listAll, markAllRead } from '@/lib/notifications';
 import { revalidatePath } from 'next/cache';
+import { formatDateTime } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTime(iso);
 }
 
 async function markAllReadAction() {

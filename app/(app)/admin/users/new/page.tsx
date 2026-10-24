@@ -3,7 +3,7 @@
 // Create-user page (admin). Passes member-ID rules from Settings to the form.
 // =============================================================================
 
-import { requireRole } from '@/lib/auth-helpers';
+import { requireRole, isRoyal } from '@/lib/auth-helpers';
 import { getSettings } from '@/lib/settings';
 import NewUserForm from './NewUserForm';
 import { PageHeader } from '@/components/ui';
@@ -11,8 +11,8 @@ import { PageHeader } from '@/components/ui';
 export const dynamic = 'force-dynamic';
 
 export default async function NewUserPage() {
-  await requireRole('admin');
-  const settings = await getSettings();
+  const admin = await requireRole('admin');
+  const [settings, royal] = await Promise.all([getSettings(), isRoyal(admin)]);
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -25,6 +25,7 @@ export default async function NewUserPage() {
       <NewUserForm
         memberIdRequired={settings.memberIdRequired}
         memberIdFormat={settings.memberIdFormat}
+        canCreateAdmins={royal}
       />
     </div>
   );

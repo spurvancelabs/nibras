@@ -44,7 +44,24 @@ const nextConfig = {
           },
           {
             key: 'Referrer-Policy',
-            value: 'origin-when-cross-origin',
+            value: 'strict-origin-when-cross-origin',
+          },
+          // Only HTTPS for 2 years (Vercel serves HTTPS already).
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains',
+          },
+          // No camera / mic / location / payments needed by the LMS.
+          {
+            key: 'Permissions-Policy',
+            value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
+          },
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
+          // Safe CSP directives that don't restrict scripts/styles/images:
+          // no framing, no plugins, no <base> hijacking, forms only post here.
+          {
+            key: 'Content-Security-Policy',
+            value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
           },
         ],
       },

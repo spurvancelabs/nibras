@@ -5,6 +5,9 @@
 //      "Require member ID" switch, member-ID format prompt that auto-generates
 //      IDs for rows without one, row filters, download of error rows,
 //      member IDs in the credentials export.
+// SECURITY: "Create users" sends only the preview's job ID — the server
+//      imports the rows it validated itself. Downloads are protected against
+//      Excel formula injection. Rows that would create admins are highlighted.
 // =============================================================================
 
 'use client';
@@ -20,7 +23,7 @@ import { Alert, Badge } from '@/components/ui';
 const TEMPLATE_CSV =
   'name,email,role,program,password,memberId\n' +
   'Jane Doe,jane@example.com,student,Web Development Bootcamp,,\n' +
-  'John Smith,john@example.com,mentor,,CustomPass123,MEM-2026-0007\n' +
+  'John Smith,john@example.com,mentor,,CustomPass2026,MEM-2026-0007\n' +
   'Sara Ali,sara@example.com,student,,auto,\n';
 
 type Phase = 'input' | 'preview' | 'done';
@@ -52,6 +55,7 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
   const [fileName, setFileName] = useState('');
   const [dragging, setDragging] = useState(false);
   const [rows, setRows] = useState<ImportRowValidation[]>([]);
+  const [jobId, setJobId] = useState('');
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [sendEmails, setSendEmails] = useState(true);
   const [result, setResult] = useState<CommitSuccess | null>(null);
@@ -90,6 +94,7 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
       });
       if (res.ok) {
         setRows(res.rows);
+        setJobId(res.jobId);
         setSummary(res.summary);
         setAppliedFormat(useFormat);
         setFilter('all');
@@ -103,25 +108,8 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
   function doCommit() {
     setError('');
     start(async () => {
-      const res = await commitImportAction({
-        rows: rows.map((r) => ({
-          line: r.line,
-          name: r.name,
-          email: r.email,
-          role: r.role,
-          program: r.program,
-          password: r.password,
-          hasExplicitPassword: r.hasExplicitPassword,
-          memberId: r.memberId,
-          memberIdSource: r.memberIdSource,
-          status: r.status,
-          error: r.error,
-          programId: r.programId,
-          programName: r.programName,
-          warnings: r.warnings,
-        })),
-        sendEmails,
-      });
+      // Only the job ID is sent — the server imports the rows it validated.
+      const res = await commitImportAction({ jobId, sendEmails });
       if (res.ok) {
         setResult(res);
         setPhase('done');
@@ -137,6 +125,7 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
     setCsv('');
     setFileName('');
     setRows([]);
+    setJobId('');
     setSummary(null);
     setResult(null);
     setError('');
@@ -247,7 +236,7 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
                 <Col name="email" req>Login email (must be unique)</Col>
                 <Col name="role">admin / mentor / student (default student)</Col>
                 <Col name="program">Must match an existing program name</Col>
-                <Col name="password">Min 6 chars — blank or <code>auto</code> to generate</Col>
+                <Col name="password">Min 8 chars — blank or <code>auto</code> to generate</Col>
                 <Col name="memberId" req={required}>
                   {required ? 'Required — or auto-generate below' : 'Optional — or auto-generate below'}
                 </Col>
@@ -339,6 +328,13 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
                   </p>
                 )}
               </div>
+            )}
+
+            {summary.admins > 0 && (
+              <Alert tone="error">
+                {summary.admins} row{summary.admins === 1 ? '' : 's'} will create <b>ADMIN</b> accounts with full access.
+                Check the role column before continuing.
+              </Alert>
             )}
 
             {appliedFormat && summary.generatedMemberIds > 0 && (
@@ -534,6 +530,8 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
                 <p className="text-sm text-muted">
                   {result.created} created · {result.skipped} skipped
                   {result.failed.length > 0 && ` · ${result.failed.length} failed`}
+                  {result.emailsQueued > 0 &&
+                    ` · ${result.emailsQueued} welcome email${result.emailsQueued === 1 ? '' : 's'} sending (results appear in the audit log)`}
                 </p>
               </div>
             </div>
@@ -637,7 +635,10 @@ export default function ImportForm({ memberIdRequired, memberIdFormat }: Props) 
 // Helpers
 // ---------------------------------------------------------------------------
 
-function csvField(s: string): string {
+/** CSV cell, neutralising =, +, -, @ so Excel can't run a formula from a name. */
+function csvField(raw: string): string {
+  let s = raw ?? '';
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
   return s;
 }

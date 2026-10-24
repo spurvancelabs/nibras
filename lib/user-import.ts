@@ -1,19 +1,23 @@
 // =============================================================================
 // FILE: lib/user-import.ts
 // CSV bulk import: parse → validate (preview) → commit.
-// NEW: optional `memberId` column (also accepts "member_id" / "member id").
-//      - IDs from the CSV are checked for duplicates (file + database)
-//      - empty IDs can be auto-generated from a format, e.g. NIB-{YYYY}-{####}
-//      - if member IDs are required and a row has none (and no format), the
-//        row is an error until a format is supplied
+//
+// SECURITY FIX: the validated rows are now kept on the SERVER (encrypted, for
+// 1 hour) as an ImportJob. "Create users" sends only the job ID, so an edited
+// browser request can no longer change roles, programs, member IDs or skip
+// validation. Each preview can be committed once.
+// Also: rows that would create ADMINS are flagged, passwords follow the shared
+// policy (min 8), names are cleaned, and welcome emails go through the batch
+// sender (see lib/email.ts).
 // =============================================================================
 
 import 'server-only';
-import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import { Types } from 'mongoose';
 import { db } from './db';
 import User from '@/models/User';
 import Program from '@/models/Program';
+import ImportJob from '@/models/ImportJob';
 import type { Role } from '@/lib/constants';
 import {
   normalizeMemberId,
@@ -22,6 +26,12 @@ import {
   generateMemberIds,
   MEMBER_ID_MAX,
 } from './member-id';
+import { generatePassword, validatePassword } from './password';
+import { seal, open } from './secret-box';
+import { cleanName } from './users';
+
+const IMPORT_BCRYPT_COST = 10; // lower cost keeps 500-row imports within time limits
+const JOB_TTL_MS = 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,10 +69,12 @@ export type ImportSummary = {
   /** How many IDs were generated from the format in this run. */
   generatedMemberIds: number;
   hasMemberIdColumn: boolean;
+  /** Valid rows that would create admin accounts. */
+  admins: number;
 };
 
 export type ValidateResult =
-  | { ok: true; rows: ImportRowValidation[]; summary: ImportSummary }
+  | { ok: true; jobId: string; rows: ImportRowValidation[]; summary: ImportSummary }
   | { ok: false; error: string };
 
 export type ImportCredential = {
@@ -80,6 +92,8 @@ export type CommitResult =
       skipped: number;
       failed: { line: number; email: string; reason: string }[];
       credentials: ImportCredential[];
+      createdIds: string[];
+      emailsQueued: number;
     }
   | { ok: false; error: string };
 
@@ -170,19 +184,7 @@ function parseCsvRecords(text: string): string[][] {
 }
 
 // ---------------------------------------------------------------------------
-// Password generation (used when CSV has no password column)
-// ---------------------------------------------------------------------------
-
-const SAFE = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-function generatePassword(len = 10): string {
-  const bytes = crypto.randomBytes(len);
-  let out = '';
-  for (let i = 0; i < len; i++) out += SAFE[bytes[i] % SAFE.length];
-  return out;
-}
-
-// ---------------------------------------------------------------------------
-// Validation
+// Validation (creates a server-side ImportJob)
 // ---------------------------------------------------------------------------
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -191,7 +193,7 @@ const ALLOWED_ROLES: Role[] = ['admin', 'mentor', 'student'];
 export async function validateImport(
   orgId: string,
   csv: string,
-  opts: { memberIdFormat?: string; memberIdRequired?: boolean } = {}
+  opts: { createdBy: string; memberIdFormat?: string; memberIdRequired?: boolean; allowAdmins?: boolean }
 ): Promise<ValidateResult> {
   if (!csv.trim()) return { ok: false, error: 'CSV is empty' };
 
@@ -252,7 +254,7 @@ export async function validateImport(
     const r = rows[i];
     const line = i + 2;
 
-    const name = (r.name ?? '').trim();
+    const name = cleanName(r.name ?? '');
     const email = (r.email ?? '').trim().toLowerCase();
     const roleRaw = (r.role ?? '').trim().toLowerCase();
     const role: Role = roleRaw ? (roleRaw as Role) : 'student';
@@ -262,7 +264,7 @@ export async function validateImport(
     const memberId = normalizeMemberId(r.memberid);
 
     const hasExplicitPassword = explicitPassword.length > 0;
-    const password = hasExplicitPassword ? explicitPassword : generatePassword();
+    const password = hasExplicitPassword ? explicitPassword : generatePassword(12);
 
     const base: ImportRow = {
       line,
@@ -285,7 +287,7 @@ export async function validateImport(
       validated.push({ ...base, status: 'error', error: 'Email is required' });
       continue;
     }
-    if (!EMAIL_RE.test(email)) {
+    if (email.length > 254 || !EMAIL_RE.test(email)) {
       validated.push({ ...base, status: 'error', error: 'Invalid email format' });
       continue;
     }
@@ -295,6 +297,10 @@ export async function validateImport(
         status: 'error',
         error: `Role must be one of: ${ALLOWED_ROLES.join(', ')}`,
       });
+      continue;
+    }
+    if (role === 'admin' && opts.allowAdmins === false) {
+      validated.push({ ...base, status: 'error', error: 'Only a royal admin can create admin accounts' });
       continue;
     }
     if (existingEmails.has(email)) {
@@ -314,22 +320,13 @@ export async function validateImport(
       continue;
     }
 
-    // --- explicit password rules ---
-    if (hasExplicitPassword && explicitPassword.length < 6) {
-      validated.push({
-        ...base,
-        status: 'error',
-        error: 'Password must be at least 6 characters',
-      });
-      continue;
-    }
-    if (hasExplicitPassword && explicitPassword.length > 100) {
-      validated.push({
-        ...base,
-        status: 'error',
-        error: 'Password must be 100 characters or fewer',
-      });
-      continue;
+    // --- explicit password rules (same policy as everywhere else) ---
+    if (hasExplicitPassword) {
+      const pwErr = validatePassword(explicitPassword, { email });
+      if (pwErr) {
+        validated.push({ ...base, status: 'error', error: pwErr });
+        continue;
+      }
     }
 
     // --- member ID from CSV ---
@@ -354,6 +351,9 @@ export async function validateImport(
     let programId: string | undefined;
     let programName: string | undefined;
 
+    if (role === 'admin') {
+      warnings.push('Will be created as an ADMIN (full access to everything)');
+    }
     if (programRaw) {
       const found = programByName.get(programRaw.toLowerCase());
       if (found) {
@@ -417,35 +417,75 @@ export async function validateImport(
     missingMemberIds: validated.filter((r) => r.status !== 'error' && !r.memberId).length,
     generatedMemberIds,
     hasMemberIdColumn: header.includes('memberid'),
+    admins: validated.filter((r) => r.status !== 'error' && r.role === 'admin').length,
   };
 
-  return { ok: true, rows: validated, summary };
+  // Keep the trusted copy on the server.
+  const job = await ImportJob.create({
+    orgId,
+    createdBy: opts.createdBy,
+    sealedRows: seal(validated),
+    summary,
+    status: 'ready',
+    expiresAt: new Date(Date.now() + JOB_TTL_MS),
+  });
+
+  return { ok: true, jobId: String(job._id), rows: validated, summary };
 }
 
 // ---------------------------------------------------------------------------
-// Commit
+// Commit (uses ONLY the server-side job)
 // ---------------------------------------------------------------------------
 
 export async function commitImport(input: {
   orgId: string;
-  rows: ImportRowValidation[];
-  sendEmails: boolean;
-  origin: string;
+  jobId: string;
+  actorId: string;
 }): Promise<CommitResult> {
+  if (!Types.ObjectId.isValid(input.jobId)) return { ok: false, error: 'Invalid import' };
   await db();
 
+  // Claim the job atomically so a double-click can't run it twice.
+  const job = (await ImportJob.findOneAndUpdate(
+    {
+      _id: input.jobId,
+      orgId: input.orgId,
+      createdBy: input.actorId,
+      status: 'ready',
+      expiresAt: { $gt: new Date() },
+    },
+    { $set: { status: 'committing' } },
+    { new: true }
+  ).lean()) as { sealedRows: string } | null;
+
+  if (!job) {
+    return {
+      ok: false,
+      error: 'This preview has expired or was already imported. Go back and validate the CSV again.',
+    };
+  }
+
+  let rows: ImportRowValidation[];
+  try {
+    rows = open<ImportRowValidation[]>(job.sealedRows);
+  } catch {
+    await ImportJob.updateOne({ _id: input.jobId }, { $set: { status: 'ready' } });
+    return { ok: false, error: 'Could not read the import preview. Validate the CSV again.' };
+  }
+
   const created: ImportCredential[] = [];
+  const createdIds: string[] = [];
   const failed: { line: number; email: string; reason: string }[] = [];
   let skipped = 0;
 
-  for (const row of input.rows) {
+  for (const row of rows) {
     if (row.status === 'error') {
       skipped++;
       continue;
     }
 
     try {
-      const passwordHash = await bcrypt.hash(row.password, 10);
+      const passwordHash = await bcrypt.hash(row.password, IMPORT_BCRYPT_COST);
 
       // Verify the hash round-trips. If this fails, something is deeply wrong
       // (corrupt password string, encoding issue, etc.) — surface it instead
@@ -471,6 +511,8 @@ export async function commitImport(input: {
         status: 'active',
         avatar: '',
         programIds: row.programId ? [row.programId] : [],
+        sessionVersion: 0,
+        passwordChangedAt: new Date(),
         ...(memberId ? { memberId } : {}),
       });
 
@@ -482,6 +524,7 @@ export async function commitImport(input: {
         );
       }
 
+      createdIds.push(String(doc._id));
       created.push({
         name: row.name,
         email: row.email,
@@ -504,9 +547,11 @@ export async function commitImport(input: {
     }
   }
 
-  if (input.sendEmails && created.length > 0) {
-    void sendWelcomeEmails(input.orgId, created, input.origin);
-  }
+  // Passwords are no longer needed on the server.
+  await ImportJob.updateOne(
+    { _id: input.jobId },
+    { $set: { status: 'done', sealedRows: '' } }
+  ).catch(() => undefined);
 
   return {
     ok: true,
@@ -514,48 +559,40 @@ export async function commitImport(input: {
     skipped,
     failed,
     credentials: created,
+    createdIds,
+    emailsQueued: 0,
   };
 }
 
 // ---------------------------------------------------------------------------
-// Welcome emails (fire-and-forget)
+// Welcome emails — call from `after()` in the action so they finish reliably
 // ---------------------------------------------------------------------------
 
-async function sendWelcomeEmails(
-  orgId: string,
+export async function sendWelcomeEmails(
   users: ImportCredential[],
   origin: string
-): Promise<void> {
-  const { sendEmail } = await import('./email');
+): Promise<{ sent: number; failed: { to: string; error: string }[] }> {
+  const { sendEmails } = await import('./email');
   const { getSettings } = await import('./settings');
   const settings = await getSettings();
   const loginUrl = `${origin.replace(/\/$/, '')}/login`;
 
-  const chunks: typeof users[] = [];
-  for (let i = 0; i < users.length; i += 10) {
-    chunks.push(users.slice(i, i + 10));
-  }
-
-  for (const chunk of chunks) {
-    await Promise.all(
-      chunk.map((u) =>
-        sendEmail({
-          to: u.email,
-          subject: `Your ${settings.orgName} account`,
-          heading: `Welcome to ${settings.orgName}`,
-          body:
-            `Hi ${u.name},\n\n` +
-            `An account has been created for you.\n\n` +
-            (u.memberId ? `Member ID: ${u.memberId}\n` : '') +
-            `Email: ${u.email}\n` +
-            (u.hasExplicitPassword
-              ? `Password: use the one provided by your administrator.\n\n`
-              : `Temporary password: ${u.password}\n\n`) +
-            `Please sign in and change your password from your profile.`,
-          link: loginUrl,
-          ctaLabel: 'Sign in',
-        })
-      )
-    );
-  }
+  return sendEmails(
+    users.map((u) => ({
+      to: u.email,
+      subject: `Your ${settings.orgName} account`,
+      heading: `Welcome to ${settings.orgName}`,
+      body:
+        `Hi ${u.name},\n\n` +
+        `An account has been created for you.\n\n` +
+        (u.memberId ? `Member ID: ${u.memberId}\n` : '') +
+        `Email: ${u.email}\n` +
+        (u.hasExplicitPassword
+          ? `Password: use the one provided by your administrator.\n\n`
+          : `Temporary password: ${u.password}\n\n`) +
+        `Please sign in and change your password from your profile.`,
+      link: loginUrl,
+      ctaLabel: 'Sign in',
+    }))
+  );
 }

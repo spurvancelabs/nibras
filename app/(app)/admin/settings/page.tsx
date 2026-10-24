@@ -3,7 +3,7 @@
 // Admin → Global settings page (branding, theme, landing, members, contact).
 // =============================================================================
 
-import { requireRole } from '@/lib/auth-helpers';
+import { requireRole, isRoyal } from '@/lib/auth-helpers';
 import { getSettings } from '@/lib/settings';
 import SettingsForm from './SettingsForm';
 import { PageHeader } from '@/components/ui';
@@ -11,8 +11,8 @@ import { PageHeader } from '@/components/ui';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminSettingsPage() {
-  await requireRole('admin');
-  const settings = await getSettings();
+  const admin = await requireRole('admin');
+  const [settings, royal] = await Promise.all([getSettings(), isRoyal(admin)]);
 
   return (
     <div className="space-y-6">
@@ -21,7 +21,7 @@ export default async function AdminSettingsPage() {
         title="Global settings"
         subtitle="These settings apply across the entire platform."
       />
-      <SettingsForm initial={settings} />
+      <SettingsForm initial={settings} canMaintenance={royal} />
     </div>
   );
 }

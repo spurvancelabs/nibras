@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { getCurrentUser } from '@/lib/auth-helpers';
+import { hit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -28,6 +29,12 @@ export async function POST(req: Request) {
     );
   }
 
+  // Generous limit (uploads of a class's worth of PDFs still work); fail-open.
+  const used = await hit(`cld-sign:${user.id}`, 10 * 60);
+  if (used > 120) {
+    return NextResponse.json({ error: 'Too many uploads — please wait a few minutes.' }, { status: 429 });
+  }
+
   let body: { folder?: string } = {};
   try {
     body = await req.json();
@@ -36,7 +43,10 @@ export async function POST(req: Request) {
   }
 
   // Force uploads into a per-org folder so tenants never collide.
-  const folder = sanitizeFolder(body.folder) ?? `lms/${user.orgId}`;
+  // Always inside this organisation's folder (a client can't pick another org's).
+  const base = `lms/${user.orgId}`;
+  const requested = sanitizeFolder(body.folder);
+  const folder = requested && requested.startsWith(base) && !requested.includes('..') ? requested : base;
   const timestamp = Math.floor(Date.now() / 1000);
 
   // Params to sign — order-independent because Cloudinary sorts before hashing.

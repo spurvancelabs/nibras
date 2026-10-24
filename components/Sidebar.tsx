@@ -18,7 +18,13 @@ type NavItem = {
   label: string;
   roles: Role[];
   icon: React.ReactNode;
+  /** Only for royal admins. */
+  royalOnly?: boolean;
+  /** Hidden when this feature is switched off in Settings. */
+  feature?: 'quizzes' | 'certificates' | 'queries' | 'gradebook';
 };
+
+type Features = { quizzes: boolean; certificates: boolean; queries: boolean; gradebook: boolean };
 
 const svg = {
   width: 19,
@@ -81,6 +87,24 @@ const Icon = {
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
     </svg>
   ),
+  quiz: (
+    <svg {...svg}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01" />
+    </svg>
+  ),
+  award: (
+    <svg {...svg}>
+      <circle cx="12" cy="9" r="6" />
+      <path d="M8.2 13.6 7 22l5-3 5 3-1.2-8.4" />
+    </svg>
+  ),
+  shield: (
+    <svg {...svg}>
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="m9 12 2 2 4-4" />
+    </svg>
+  ),
   close: (
     <svg {...svg} strokeWidth={2}>
       <path d="M18 6 6 18M6 6l12 12" />
@@ -90,17 +114,23 @@ const Icon = {
 
 const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Dashboard', roles: ['admin', 'mentor', 'student'], icon: Icon.dash },
+  { href: '/programs', label: 'My programs', roles: ['mentor', 'student'], icon: Icon.programs },
   { href: '/sessions', label: 'Sessions', roles: ['admin', 'mentor', 'student'], icon: Icon.sessions },
   { href: '/assignments', label: 'Assignments', roles: ['admin', 'mentor', 'student'], icon: Icon.assignments },
-  { href: '/queries', label: 'Queries', roles: ['admin', 'mentor', 'student'], icon: Icon.queries },
+  { href: '/quizzes', label: 'Quizzes', roles: ['admin', 'mentor', 'student'], icon: Icon.quiz, feature: 'quizzes' },
+  { href: '/queries', label: 'Queries', roles: ['admin', 'mentor', 'student'], icon: Icon.queries, feature: 'queries' },
   { href: '/attendance', label: 'Attendance', roles: ['student'], icon: Icon.attendance },
+  { href: '/certificates', label: 'Certificates', roles: ['admin', 'mentor', 'student'], icon: Icon.award, feature: 'certificates' },
   { href: '/admin/programs', label: 'Programs', roles: ['admin'], icon: Icon.programs },
   { href: '/admin/users', label: 'Users', roles: ['admin'], icon: Icon.users },
+  { href: '/admin/security', label: 'Security', roles: ['admin'], icon: Icon.shield, royalOnly: true },
   { href: '/admin/settings', label: 'Settings', roles: ['admin'], icon: Icon.settings },
 ];
 
 type Props = {
   role: Role;
+  royal?: boolean;
+  features?: Features;
   orgName: string;
   logo: string;
   userName?: string;
@@ -111,6 +141,8 @@ type Props = {
 
 export default function Sidebar({
   role,
+  royal = false,
+  features,
   orgName,
   logo,
   userName = '',
@@ -119,7 +151,12 @@ export default function Sidebar({
   onClose,
 }: Props) {
   const pathname = usePathname() ?? '';
-  const items = NAV.filter((n) => n.roles.includes(role));
+  const items = NAV.filter(
+    (n) =>
+      n.roles.includes(role) &&
+      (!n.royalOnly || royal) &&
+      (!n.feature || !features || features[n.feature] !== false)
+  );
   const mainItems = items.filter((n) => !n.href.startsWith('/admin'));
   const adminItems = items.filter((n) => n.href.startsWith('/admin'));
   const collapsed = !desktopVisible; // only affects md+ screens

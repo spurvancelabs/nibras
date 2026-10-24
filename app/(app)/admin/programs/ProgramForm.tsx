@@ -13,6 +13,7 @@ import { useRouter } from 'next/navigation';
 import { saveProgramAction, deleteProgramAction } from './actions';
 import type { ProgramDetail } from '@/lib/programs';
 import { Alert, Icons } from '@/components/ui';
+import { toLocalDateInput } from '@/lib/time';
 
 type Props = {
   initial?: ProgramDetail;
@@ -30,7 +31,7 @@ const DESC_MAX = 2000;
 
 function toDateInput(iso: string | null | undefined) {
   if (!iso) return '';
-  return new Date(iso).toISOString().slice(0, 10);
+  return toLocalDateInput(iso);
 }
 
 function durationLabel(start: string, end: string) {

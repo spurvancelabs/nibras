@@ -4,6 +4,9 @@
 // avatar), Security (reset password + generator), Programs (searchable),
 // Danger zone (delete with impact summary + typed confirmation).
 // Self-protection: you can't disable/demote/delete your own account.
+// NEW: password policy (min 8, shared with the server), "Sign out of all
+// devices", confirmation before granting admin, password reset signs the user
+// out everywhere.
 // =============================================================================
 
 'use client';
@@ -16,8 +19,11 @@ import {
   setUserProgramsAction,
   deleteUsersAction,
   nextMemberIdAction,
+  revokeSessionsAction,
 } from '../actions';
-import type { UserListItem } from '@/lib/users';
+import { generatePassword, validatePassword, PASSWORD_MIN } from '@/lib/password';
+import { formatDateTime } from '@/lib/time';
+import type { UserDetail } from '@/lib/users';
 import type { ProgramListItem } from '@/lib/programs';
 import { ROLES, type Role } from '@/lib/constants';
 import { Panel, Alert, Badge, Icons } from '@/components/ui';
@@ -32,19 +38,18 @@ type Footprint = {
 };
 
 type Props = {
-  user: UserListItem;
+  user: UserDetail;
   programs: ProgramListItem[];
   isSelf: boolean;
   footprint: Footprint;
   memberIdRequired: boolean;
   memberIdFormat: string;
+  /** Viewer is a royal admin (can change admins / grant admin). */
+  viewerRoyal?: boolean;
 };
 
-const SAFE = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKMNPQRSTUVWXYZ23456789';
-function randomPassword(len = 10) {
-  const bytes = new Uint8Array(len);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => SAFE[b % SAFE.length]).join('');
+function randomPassword() {
+  return generatePassword(12);
 }
 
 type Msg = { tone: 'error' | 'success'; text: string } | null;
@@ -56,7 +61,10 @@ export default function EditUserForm({
   footprint,
   memberIdRequired,
   memberIdFormat,
+  viewerRoyal = true,
 }: Props) {
+  // Non-royal admins can look at admin accounts but not change them.
+  const locked = user.role === 'admin' && !isSelf && !viewerRoyal;
   const router = useRouter();
 
   const [account, setAccount] = useState({
@@ -75,6 +83,7 @@ export default function EditUserForm({
   const [pendingPassword, startPassword] = useTransition();
   const [pendingPrograms, startPrograms] = useTransition();
   const [pendingDelete, startDelete] = useTransition();
+  const [pendingRevoke, startRevoke] = useTransition();
   const [genPending, startGen] = useTransition();
 
   const [accountMsg, setAccountMsg] = useState<Msg>(null);
@@ -116,6 +125,12 @@ export default function EditUserForm({
       setAccountMsg({ tone: 'error', text: 'Member ID is required.' });
       return;
     }
+    if (account.role === 'admin' && user.role !== 'admin') {
+      if (!confirm(`Give ${user.name} FULL ADMIN access? Admins can see and change everything.`)) return;
+    }
+    if (account.status === 'disabled' && user.status !== 'disabled') {
+      if (!confirm(`Disable ${user.name}? They will be signed out and can't sign in.`)) return;
+    }
     startAccount(async () => {
       const res = await updateUserAction({
         id: user.id,
@@ -136,14 +151,19 @@ export default function EditUserForm({
 
   function savePassword() {
     setPasswordMsg(null);
-    if (password.length < 6) {
-      setPasswordMsg({ tone: 'error', text: 'Password must be at least 6 characters.' });
+    const pwErr = validatePassword(password, { email: user.email });
+    if (pwErr) {
+      setPasswordMsg({ tone: 'error', text: pwErr + '.' });
       return;
     }
     startPassword(async () => {
       const res = await updateUserAction({ id: user.id, password });
       if (res.ok) {
-        setPasswordMsg({ tone: 'success', text: 'Password updated. Share it with the user securely.' });
+        setPasswordMsg({
+          tone: 'success',
+          text: 'Password updated and the user was signed out on all devices. Share the new password securely.',
+        });
+        router.refresh();
       } else {
         setPasswordMsg({ tone: 'error', text: res.error });
       }
@@ -163,6 +183,19 @@ export default function EditUserForm({
       } else {
         setProgramsMsg({ tone: 'error', text: res.error });
       }
+    });
+  }
+
+  function signOutEverywhere() {
+    setPasswordMsg(null);
+    if (!confirm(`Sign ${user.name} out on every device? They can sign in again with their password.`)) return;
+    startRevoke(async () => {
+      const res = await revokeSessionsAction({ ids: [user.id] });
+      setPasswordMsg(
+        res.ok
+          ? { tone: 'success', text: `${user.name} was signed out on all devices.` }
+          : { tone: 'error', text: res.error }
+      );
     });
   }
 
@@ -190,6 +223,14 @@ export default function EditUserForm({
     : '';
 
   return (
+    <fieldset disabled={locked} className="min-w-0 border-0 p-0 m-0">
+    {locked && (
+      <div className="mb-4">
+        <Alert tone="info">
+          This is an admin account. Only a <b>royal admin</b> can change, disable or delete admins.
+        </Alert>
+      </div>
+    )}
     <div className="space-y-6">
       {/* ---------------- Account ---------------- */}
       <form onSubmit={saveAccount}>
@@ -254,12 +295,13 @@ export default function EditUserForm({
             <div className="inline-flex p-1 rounded-[var(--radius-md)] bg-bg border border-border">
               {ROLES.map((r) => {
                 const active = account.role === r;
-                const locked = isSelf && r !== 'admin';
+                const roleLocked = (isSelf && r !== 'admin') || (r === 'admin' && !viewerRoyal && user.role !== 'admin');
                 return (
                   <button
                     key={r}
                     type="button"
-                    disabled={locked}
+                    disabled={roleLocked}
+                    title={r === 'admin' && !viewerRoyal ? 'Only a royal admin can grant admin access' : undefined}
                     onClick={() => setAccount({ ...account, role: r as Role })}
                     aria-pressed={active}
                     className={`h-9 px-4 rounded-[calc(var(--radius-md)-2px)] text-sm font-medium capitalize transition disabled:opacity-40 ${
@@ -335,7 +377,7 @@ export default function EditUserForm({
             type="text"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="New password (min 6 characters)"
+            placeholder={`New password (min ${PASSWORD_MIN} characters)`}
             autoComplete="new-password"
             aria-label="New password"
           />
@@ -353,7 +395,35 @@ export default function EditUserForm({
             </button>
           </div>
         </div>
-        <p className="text-xs text-muted">The current password stops working immediately.</p>
+        <p className="text-xs text-muted">
+          The current password stops working immediately and the user is signed out on all devices.
+        </p>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 mt-1 border-t border-border">
+          <div className="text-xs text-muted space-y-0.5">
+            <p>
+              Last sign-in:{' '}
+              <span className="text-text">
+                {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'never (or before tracking started)'}
+              </span>
+              {user.lastLoginIp ? <span> · IP {user.lastLoginIp}</span> : null}
+            </p>
+            {user.passwordChangedAt && (
+              <p>
+                Password last set: <span className="text-text">{formatDateTime(user.passwordChangedAt)}</span>
+              </p>
+            )}
+          </div>
+          {!isSelf && (
+            <button
+              type="button"
+              onClick={signOutEverywhere}
+              disabled={pendingRevoke}
+              className="btn-outline h-10 text-sm shrink-0"
+            >
+              {pendingRevoke ? 'Signing out…' : 'Sign out of all devices'}
+            </button>
+          )}
+        </div>
       </Panel>
 
       {/* ---------------- Programs ---------------- */}
@@ -506,5 +576,6 @@ export default function EditUserForm({
         </div>
       </section>
     </div>
+    </fieldset>
   );
 }

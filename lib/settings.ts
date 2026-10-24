@@ -13,7 +13,7 @@ import Setting, {
   type ThemeSettings,
   type ThemePalette,
 } from '@/models/Setting';
-import { clampLogoHeight } from '@/lib/theme-config';
+import { clampLogoHeight, BOOLEAN_SETTING_DEFAULTS } from '@/lib/theme-config';
 
 function mergePalette(
   base: ThemePalette,
@@ -24,6 +24,10 @@ function mergePalette(
 
 function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
   const d = doc ?? {};
+  const bools: Record<string, boolean> = {};
+  for (const [k, def] of Object.entries(BOOLEAN_SETTING_DEFAULTS)) {
+    bools[k] = typeof d[k] === 'boolean' ? (d[k] as boolean) : def;
+  }
   return {
     ...DEFAULT_SETTINGS,
     ...d,
@@ -38,6 +42,7 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
     partnerLogos: Array.isArray(d.partnerLogos)
       ? (d.partnerLogos as unknown[]).filter((x): x is string => typeof x === 'string')
       : [],
+    ...bools,
   } as ThemeSettings;
 }
 
@@ -69,7 +74,7 @@ export async function updateSettings(
       clean[k] = v; // whole palette replaced
     } else if (k === 'partnerLogos' && Array.isArray(v)) {
       clean[k] = v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').slice(0, 12);
-    } else if (k === 'memberIdRequired') {
+    } else if (k in BOOLEAN_SETTING_DEFAULTS) {
       clean[k] = v === true;
     } else if (k === 'logoHeight') {
       clean[k] = clampLogoHeight(v);
@@ -86,9 +91,13 @@ export async function updateSettings(
   );
 
   try {
-    // Next.js 16+ requires two arguments for revalidateTag
-    const { revalidateTag } = await import('next/cache');
-    revalidateTag('settings', 'max');
+    // Immediate refresh inside Server Actions (updateTag); elsewhere expire now.
+    const mod = await import('next/cache');
+    try {
+      mod.updateTag('settings');
+    } catch {
+      mod.revalidateTag('settings', { expire: 0 });
+    }
   } catch (error) {
     console.warn('Failed to revalidate settings tag:', error);
   }

@@ -6,6 +6,7 @@
 // =============================================================================
 
 import Link from 'next/link';
+import { zonedParts, formatInZone } from '@/lib/time';
 
 type Tone = 'success' | 'danger' | 'warning' | 'muted' | 'primary';
 
@@ -221,7 +222,7 @@ export function EmptyNote({
 // ---------------------------------------------------------------------------
 
 export function DateTile({ iso, muted = false }: { iso: string; muted?: boolean }) {
-  const d = new Date(iso);
+  const day = zonedParts(iso).day;
   return (
     <div
       className={`w-14 shrink-0 text-center rounded-[var(--radius-md)] overflow-hidden border ${
@@ -233,11 +234,11 @@ export function DateTile({ iso, muted = false }: { iso: string; muted?: boolean 
           muted ? 'bg-border/60 text-muted' : 'bg-primary text-primary-fg'
         }`}
       >
-        {d.toLocaleDateString(undefined, { month: 'short' })}
+        {formatInZone(iso, { month: 'short' })}
       </p>
-      <p className="text-xl font-semibold leading-none pt-1.5">{d.getDate()}</p>
+      <p className="text-xl font-semibold leading-none pt-1.5">{day}</p>
       <p className="text-[10px] text-muted pb-1.5 pt-0.5">
-        {d.toLocaleDateString(undefined, { weekday: 'short' })}
+        {formatInZone(iso, { weekday: 'short' })}
       </p>
     </div>
   );

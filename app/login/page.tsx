@@ -9,7 +9,12 @@ import { auth } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import LoginForm from './LoginForm';
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ changed?: string; error?: string }>;
+}) {
+  const sp = await searchParams;
   const session = (await auth()) as { user?: unknown } | null;
   if (session?.user) redirect('/dashboard');
 
@@ -21,6 +26,8 @@ export default async function LoginPage() {
       logo={s.logo || ''}
       contactEmail={s.contactEmail || ''}
       supportUrl={s.supportUrl || ''}
+      notice={s.loginNotice || ''}
+      passwordChanged={sp.changed === '1'}
     />
   );
 }

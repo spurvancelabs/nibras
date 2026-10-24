@@ -15,25 +15,19 @@ import {
   DateTile,
   Icons,
 } from '@/components/ui';
+import { formatDateTime, formatTime } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
 type SessionRow = Awaited<ReturnType<typeof listSessionsForUser>>[number];
 
 function fmtDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTime(iso);
 }
 
 function fmtTimeRange(startIso: string, endIso?: string) {
   const t = (iso: string) =>
-    new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+    formatTime(iso);
   return endIso ? `${t(startIso)} – ${t(endIso)}` : t(startIso);
 }
 

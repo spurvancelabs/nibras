@@ -20,18 +20,12 @@ import {
   ProgressRing,
   Icons,
 } from '@/components/ui';
+import { formatDateTimeWeekday } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTimeWeekday(iso);
 }
 
 function StatusChip({ status }: { status: AttendanceStatus | null }) {

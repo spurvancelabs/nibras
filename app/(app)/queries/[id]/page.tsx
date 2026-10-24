@@ -17,25 +17,16 @@ import Avatar from '@/components/Avatar';
 import ReplyForm from './ReplyForm';
 import StatusActions from './StatusActions';
 import { Badge, DownloadIcon, Icons } from '@/components/ui';
+import { formatDateTime, formatDayMonth } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTime(iso);
 }
 
 function dayLabel(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-  });
+  return formatDayMonth(iso);
 }
 
 export default async function QueryThreadPage({

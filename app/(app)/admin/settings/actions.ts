@@ -8,8 +8,9 @@
 'use server';
 
 import { z } from 'zod';
-import { requireRole } from '@/lib/auth-helpers';
-import { updateSettings } from '@/lib/settings';
+import { requireRole, isRoyal } from '@/lib/auth-helpers';
+import { updateSettings, getSettings } from '@/lib/settings';
+import { audit } from '@/lib/audit';
 import { DEFAULT_LIGHT } from '@/lib/theme-config';
 import { DEFAULT_MEMBER_ID_FORMAT, validateMemberIdFormat } from '@/lib/member-id';
 
@@ -86,6 +87,50 @@ const schema = z.object({
     .refine((v) => validateMemberIdFormat(v) === null, {
       message: 'Member ID format is invalid — e.g. MEM-{YYYY}-{####}',
     }),
+
+  // Theme extras
+  themePresetId: z.string().max(60).optional().default(''),
+  allowUserThemes: z.boolean().optional().default(true),
+
+  // Features
+  featureQuizzes: z.boolean().optional().default(true),
+  featureCertificates: z.boolean().optional().default(true),
+  featureSyllabus: z.boolean().optional().default(true),
+  featureQueries: z.boolean().optional().default(true),
+  featureGradebook: z.boolean().optional().default(true),
+
+  // Announcement
+  announcementEnabled: z.boolean().optional().default(false),
+  announcementText: z.string().max(280, 'Announcement is too long (max 280)').optional().default(''),
+  announcementTone: z.enum(['info', 'success', 'warning', 'danger']).optional().default('info'),
+  announcementLink: z
+    .string()
+    .max(300)
+    .refine((v) => v === '' || /^https?:\/\/\S+$/i.test(v) || /^\/[^\s/][^\s]*$/.test(v), {
+      message: 'Announcement link must be a full URL or a page path like /quizzes',
+    })
+    .optional()
+    .default(''),
+  announcementAudience: z.enum(['all', 'student', 'mentor', 'admin']).optional().default('all'),
+
+  loginNotice: z.string().max(300, 'Login notice is too long (max 300)').optional().default(''),
+
+  // Certificates
+  certIssuerName: z.string().max(120).optional().default(''),
+  certSignatoryName: z.string().max(80).optional().default(''),
+  certSignatoryTitle: z.string().max(80).optional().default('Program Director'),
+  certSignatureImage: urlOrEmpty,
+  certPrefix: z
+    .string()
+    .max(12)
+    .regex(/^[A-Za-z0-9-]*$/, 'Certificate prefix: letters, numbers and - only')
+    .optional()
+    .default('CERT'),
+  certFooterText: z.string().max(200).optional().default(''),
+
+  // Maintenance (royal only)
+  maintenanceMode: z.boolean().optional().default(false),
+  maintenanceMessage: z.string().max(300).optional().default(''),
 });
 
 export type SettingsActionResult =
@@ -105,8 +150,34 @@ export async function saveSettings(
     };
   }
 
+  const before = await getSettings();
+  const data = { ...parsed.data, certPrefix: (parsed.data.certPrefix || 'CERT').toUpperCase() };
+
+  // Maintenance mode locks students & mentors out — royal admins only.
+  if (
+    (data.maintenanceMode !== before.maintenanceMode || data.maintenanceMessage !== before.maintenanceMessage) &&
+    !(await isRoyal(admin))
+  ) {
+    return { ok: false, error: 'Only a royal admin can change maintenance mode.' };
+  }
+
+  const changed = Object.keys(data).filter(
+    (k) => JSON.stringify((data as Record<string, unknown>)[k]) !== JSON.stringify((before as Record<string, unknown>)[k])
+  );
+
   try {
-    await updateSettings(parsed.data, admin.id);
+    await updateSettings(data, admin.id);
+    if (changed.length) {
+      await audit({
+        orgId: admin.orgId,
+        action: 'settings.update',
+        actorId: admin.id,
+        actorEmail: admin.email ?? '',
+        actorName: admin.name ?? '',
+        summary: `Changed: ${changed.slice(0, 12).join(', ')}${changed.length > 12 ? ` +${changed.length - 12} more` : ''}`,
+        meta: { changed },
+      });
+    }
     return { ok: true };
   } catch (e) {
     console.error('[saveSettings]', e);

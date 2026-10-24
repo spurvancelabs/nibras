@@ -21,33 +21,21 @@ import {
   ProgressRing,
   Icons,
 } from '@/components/ui';
+import { formatDateTimeWeekday, formatTime, greetingFor, formatDayMonth } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 function fmt(iso: string) {
-  return new Date(iso).toLocaleString(undefined, {
-    year: 'numeric',
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatDateTimeWeekday(iso);
 }
 
 function fmtTime(iso: string) {
-  return new Date(iso).toLocaleTimeString(undefined, {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return formatTime(iso);
 }
 
 function greeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 18) return 'Good afternoon';
-  return 'Good evening';
+  return greetingFor();
 }
 
 const rowCls =
@@ -126,11 +114,7 @@ export default async function DashboardPage() {
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted capitalize">
               {user.role} ·{' '}
-              {new Date().toLocaleDateString(undefined, {
-                weekday: 'long',
-                month: 'long',
-                day: 'numeric',
-              })}
+              {formatDayMonth(new Date())}
             </p>
             <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight">
               {greeting()}, {firstName}

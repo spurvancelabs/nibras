@@ -2,14 +2,19 @@
 // FILE: app/(app)/admin/users/[id]/page.tsx
 // Edit-user page (admin): profile header, account form (incl. member ID),
 // programs, and a danger zone (delete) that shows what will be removed.
+// NEW: last sign-in in the header, dates in the app time zone, and a
+// "Recent activity" list from the audit log (sign-ins, changes, resets).
 // =============================================================================
 
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireRole } from '@/lib/auth-helpers';
+import { requireRole, isRoyal } from '@/lib/auth-helpers';
+import RoyalToggle from './RoyalToggle';
 import { getUserById, getUserFootprint } from '@/lib/users';
 import { listPrograms } from '@/lib/programs';
 import { getSettings } from '@/lib/settings';
+import { listAudit } from '@/lib/audit';
+import { formatDateTime, formatMonthYear, formatRelative } from '@/lib/time';
 import Avatar from '@/components/Avatar';
 import EditUserForm from './EditUserForm';
 import { Badge } from '@/components/ui';
@@ -32,7 +37,11 @@ export default async function EditUserPage({
 
   if (!user) notFound();
 
-  const footprint = await getUserFootprint(admin.orgId, user.id);
+  const viewerRoyal = await isRoyal(admin);
+  const [footprint, activity] = await Promise.all([
+    getUserFootprint(admin.orgId, user.id),
+    viewerRoyal ? listAudit(admin.orgId, { targetId: user.id, limit: 15 }).catch(() => []) : Promise.resolve([]),
+  ]);
   const isSelf = user.id === admin.id;
 
   return (
@@ -62,17 +71,20 @@ export default async function EditUserPage({
               ) : (
                 <Badge tone="danger" dot>disabled</Badge>
               )}
+              {user.royal && <Badge tone="warning">👑 royal admin</Badge>}
               {isSelf && <Badge tone="muted">you</Badge>}
             </div>
             <h1 className="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight truncate">{user.name}</h1>
             <p className="text-sm text-muted truncate">{user.email}</p>
           </div>
-          <div className="grid grid-cols-3 gap-2 sm:w-auto">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:w-auto">
             <Fact label="Member ID" value={user.memberId || '—'} mono />
             <Fact label="Programs" value={String(user.programIds.length)} />
+            <Fact label="Joined" value={formatMonthYear(user.createdAt)} />
             <Fact
-              label="Joined"
-              value={new Date(user.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}
+              label="Last sign-in"
+              value={user.lastLoginAt ? formatRelative(user.lastLoginAt) : 'never'}
+              title={user.lastLoginAt ? formatDateTime(user.lastLoginAt) : undefined}
             />
           </div>
         </div>
@@ -85,14 +97,54 @@ export default async function EditUserPage({
         footprint={footprint}
         memberIdRequired={settings.memberIdRequired}
         memberIdFormat={settings.memberIdFormat}
+        viewerRoyal={viewerRoyal}
       />
+
+      {viewerRoyal && user.role === 'admin' && !isSelf && user.status === 'active' && (
+        <RoyalToggle userId={user.id} name={user.name} royal={user.royal} fromEnv={user.royalFromEnv} />
+      )}
+
+      {/* Recent activity (royal admins only) */}
+      {viewerRoyal && (
+      <section className="bg-surface border border-border rounded-[var(--radius-lg)] overflow-hidden">
+        <div className="flex items-center justify-between gap-3 px-5 sm:px-6 py-4 border-b border-border">
+          <h2 className="font-semibold">Recent activity</h2>
+          <Link href={`/admin/security/audit?user=${user.id}`} className="text-xs text-muted hover:text-text underline">
+            Full history
+          </Link>
+        </div>
+        {activity.length === 0 ? (
+          <p className="px-5 sm:px-6 py-5 text-sm text-muted">No activity recorded yet.</p>
+        ) : (
+          <ul className="divide-y divide-border">
+            {activity.map((a) => (
+              <li key={a.id} className="px-5 sm:px-6 py-3 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4 text-sm">
+                <span className="text-xs text-muted w-40 shrink-0 tabular-nums">{formatDateTime(a.at)}</span>
+                <span className="min-w-0 flex-1">
+                  <span className={`font-medium ${a.action === 'auth.login_failed' || a.action === 'auth.login_blocked' ? 'text-danger' : ''}`}>
+                    {a.label}
+                  </span>
+                  {a.summary && a.action !== 'auth.login' && (
+                    <span className="text-muted"> — {a.summary}</span>
+                  )}
+                </span>
+                <span className="text-xs text-muted truncate">
+                  {a.actorId && a.actorId !== user.id ? `by ${a.actorName || a.actorEmail}` : ''}
+                  {a.ip ? ` · ${a.ip}` : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      )}
     </div>
   );
 }
 
-function Fact({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
+function Fact({ label, value, mono = false, title }: { label: string; value: string; mono?: boolean; title?: string }) {
   return (
-    <div className="rounded-[var(--radius-md)] bg-surface/85 border border-border px-3 py-2 min-w-0">
+    <div className="rounded-[var(--radius-md)] bg-surface/85 border border-border px-3 py-2 min-w-0" title={title}>
       <p className="text-[10px] uppercase tracking-wider text-muted">{label}</p>
       <p className={`text-sm font-semibold truncate ${mono ? 'font-mono' : ''}`}>{value}</p>
     </div>

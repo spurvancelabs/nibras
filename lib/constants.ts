@@ -41,6 +41,9 @@ export const NOTIFICATION_TYPES = [
   'session.new',
   'query.new',
   'query.reply',
+  'quiz.new',
+  'quiz.graded',
+  'certificate.issued',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 
@@ -51,3 +54,19 @@ export const ATTENDANCE_STATUSES = [
   'excused',
 ] as const;
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number];
+export const QUESTION_TYPES = ['single', 'multiple', 'true_false', 'short', 'numeric'] as const;
+export type QuestionType = (typeof QUESTION_TYPES)[number];
+
+export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  single: 'Multiple choice (one answer)',
+  multiple: 'Multiple choice (several answers)',
+  true_false: 'True / False',
+  short: 'Short text answer',
+  numeric: 'Number answer',
+};
+
+export const QUIZ_STATUSES = ['draft', 'published', 'closed'] as const;
+export type QuizStatus = (typeof QUIZ_STATUSES)[number];
+
+export const QUIZ_RESULT_VISIBILITY = ['immediately', 'after_close', 'never'] as const;
+export type QuizResultVisibility = (typeof QUIZ_RESULT_VISIBILITY)[number];

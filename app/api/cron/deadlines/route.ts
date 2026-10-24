@@ -5,6 +5,7 @@ import Submission from '@/models/Submission';
 import Program from '@/models/Program';
 import { notifyMany } from '@/lib/notifications';
 import { sendEmail } from '@/lib/email';
+import { formatDateTime } from '@/lib/time';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -56,13 +57,7 @@ export async function GET(req: Request) {
     const pendingIds = studentIds.filter((id: string) => !submittedIds.has(id));
     if (pendingIds.length === 0) continue;
 
-    const dueLabel = new Date(a.dueAt).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
+    const dueLabel = formatDateTime(a.dueAt) + ' (PKT)';
 
     await notifyMany({
       orgId: String(a.orgId),

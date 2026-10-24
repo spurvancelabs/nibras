@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 import CloudinaryUpload from '@/components/CloudinaryUpload';
 import Avatar from '@/components/Avatar';
 import { saveProfileAction } from './actions';
@@ -33,6 +34,13 @@ export default function ProfileForm({ user }: { user: UserListItem }) {
         currentPassword,
         newPassword,
       });
+      if (res.ok && res.passwordChanged) {
+        // The password change signed this account out everywhere — finish the
+        // sign-out here and go to the login page with a friendly message.
+        setMsg({ kind: 'ok', text: 'Password changed. Signing you out…' });
+        await signOut({ callbackUrl: '/login?changed=1' });
+        return;
+      }
       if (res.ok) {
         setMsg({ kind: 'ok', text: 'Profile updated.' });
         setCurrentPassword('');
@@ -120,8 +128,8 @@ export default function ProfileForm({ user }: { user: UserListItem }) {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
-              minLength={6}
-              placeholder="min 6 characters"
+              minLength={8}
+              placeholder="min 8 characters"
             />
           </div>
           <div>

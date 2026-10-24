@@ -1,12 +1,19 @@
 // =============================================================================
-// FILE: lib/member-id.ts   (NEW FILE)
+// FILE: lib/member-id.ts
 // Member ID helpers — client-safe (no mongoose / server-only imports).
 //
 // Format tokens:
 //   {YYYY} 2026   {YY} 26   {MM} 10   {DD} 15
 //   {###}  running number, padded to the number of # (one counter token, 1–8 #)
 // Example: "NIB-{YYYY}-{####}"  ->  NIB-2026-0001, NIB-2026-0002, …
+//
+// TIME FIX: date tokens now use the app time zone (Asia/Karachi by default)
+// on both server and browser. Before, the server used UTC, so between
+// 00:00–05:00 PKT IDs got yesterday's date — and on 1 January the year (and
+// therefore the running number) was wrong.
 // =============================================================================
+
+import { zonedParts, APP_TIME_ZONE } from './time';
 
 export const DEFAULT_MEMBER_ID_FORMAT = 'MEM-{YYYY}-{####}';
 export const MEMBER_ID_MAX = 40;
@@ -41,11 +48,12 @@ function pad(n: number, len: number) {
 }
 
 function applyDateTokens(format: string, date: Date) {
+  const p = zonedParts(date, APP_TIME_ZONE);
   return format
-    .replace(/\{YYYY\}/g, String(date.getFullYear()))
-    .replace(/\{YY\}/g, String(date.getFullYear()).slice(-2))
-    .replace(/\{MM\}/g, pad(date.getMonth() + 1, 2))
-    .replace(/\{DD\}/g, pad(date.getDate(), 2));
+    .replace(/\{YYYY\}/g, String(p.year))
+    .replace(/\{YY\}/g, String(p.year).slice(-2))
+    .replace(/\{MM\}/g, pad(p.month, 2))
+    .replace(/\{DD\}/g, pad(p.day, 2));
 }
 
 /** Build one ID for counter value n. */
