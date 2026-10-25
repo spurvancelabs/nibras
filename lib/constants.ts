@@ -44,6 +44,8 @@ export const NOTIFICATION_TYPES = [
   'quiz.new',
   'quiz.graded',
   'certificate.issued',
+  'security.signin',
+  'security.2fa',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

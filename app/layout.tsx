@@ -1,27 +1,27 @@
 // =============================================================================
 // FILE: app/layout.tsx
-// Root layout. Reads Settings (MongoDB) and injects the theme as CSS variables:
-//   --color-* (light on :root, dark on .dark), --radius-md/lg, --font-sans,
-//   --logo-h (logo size, used by the .brand-logo class in globals.css)
-// and loads the selected Google Font (Poppins by default).
+// Root layout. Reads Settings (MongoDB) and injects the organisation's
+// appearance as CSS variables (lib/theme-css.ts):
+//   colour theme  --color-* (light on :root, dark on .dark), radius, font,
+//                 illustrated scene for Deluxe / Anime themes
+//   design style  --ui-* (Glassmorphism, Neobrutalism, … — lib/ui-styles.ts)
+//   logo size     --logo-h
+// and loads the Google Fonts the theme + style need in ONE stylesheet.
+// Signed-in users may override theme/style for themselves (app/(app)/layout).
 // =============================================================================
 
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import Providers from '@/components/providers';
-import {
-  DEFAULT_SETTINGS,
-  DEFAULT_LIGHT,
-  DEFAULT_DARK,
-  type ThemePalette,
-} from '@/models/Setting';
-import { googleFontHref, clampLogoHeight } from '@/lib/theme-config';
+import { DEFAULT_SETTINGS } from '@/models/Setting';
+import { clampLogoHeight, type ThemeSettings } from '@/lib/theme-config';
+import { orgAppearanceCss, fontsHref } from '@/lib/theme-css';
+import { findUiStyle } from '@/lib/ui-styles';
 
-let getSettings: () => Promise<any>;
+let getSettings: () => Promise<ThemeSettings>;
 let THEME_SCRIPT = '';
 
 try {
-  // Try to import the settings and theme modules
   const settingsModule = await import('@/lib/settings');
   const themeModule = await import('@/lib/theme-script');
   getSettings = settingsModule.getSettings;
@@ -31,11 +31,17 @@ try {
   getSettings = async () => DEFAULT_SETTINGS;
 }
 
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   try {
     const s = await getSettings();
     return {
-      title: s.orgName || 'Nibras',
+      title: { default: s.orgName || 'Nibras', template: `%s · ${s.orgName || 'Nibras'}` },
       description: `${s.orgName || 'Nibras'} — Learning Management System`,
       icons: s.favicon ? { icon: s.favicon } : undefined,
     };
@@ -48,57 +54,24 @@ export async function generateMetadata(): Promise<Metadata> {
   }
 }
 
-// Values are admin-controlled; strip characters that could break out of the <style> block.
-const css = (v: unknown, fallback: string) =>
-  (typeof v === 'string' && v.trim() ? v : fallback).replace(/[<>{};]/g, '');
-
-function paletteBlock(
-  selector: string,
-  p: Partial<ThemePalette> | undefined,
-  d: ThemePalette
-) {
-  const v = p ?? {};
-  return `${selector}{
-    --color-primary:${css(v.primary, d.primary)};
-    --color-primary-fg:${css(v.primaryFg, d.primaryFg)};
-    --color-bg:${css(v.bg, d.bg)};
-    --color-surface:${css(v.surface, d.surface)};
-    --color-border:${css(v.border, d.border)};
-    --color-muted:${css(v.muted, d.muted)};
-    --color-text:${css(v.text, d.text)};
-    --color-success:${css(v.success, d.success)};
-    --color-warning:${css(v.warning, d.warning)};
-    --color-danger:${css(v.danger, d.danger)};
-    --color-hero:${css(v.heroBg, d.heroBg)};
-    --color-accent:${css(v.accent, d.accent)};
-  }`;
-}
-
-export default async function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  let s = DEFAULT_SETTINGS;
-
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  let s: ThemeSettings = DEFAULT_SETTINGS;
   try {
     s = await getSettings();
   } catch (error) {
     console.warn('Failed to load settings, using defaults:', error);
   }
 
-  const themeCss = [
-    paletteBlock(':root', s.light, DEFAULT_LIGHT),
-    paletteBlock('.dark', s.dark, DEFAULT_DARK),
-    `:root, .dark {
-      --radius-md:${css(s.radiusMd, DEFAULT_SETTINGS.radiusMd)};
-      --radius-lg:${css(s.radiusLg, DEFAULT_SETTINGS.radiusLg)};
-      --font-sans:${css(s.font, DEFAULT_SETTINGS.font)};
-      --logo-h:${clampLogoHeight(s.logoHeight ?? DEFAULT_SETTINGS.logoHeight)}px;
-    }`,
-  ].join('\n');
-
-  const fontHref = googleFontHref(s.font || DEFAULT_SETTINGS.font);
+  let appearance = '';
+  try {
+    appearance = orgAppearanceCss(s);
+  } catch (error) {
+    // Never let a theme problem take the site down — fall back to defaults.
+    console.error('[layout] appearance css failed, using defaults:', error);
+    appearance = orgAppearanceCss(DEFAULT_SETTINGS);
+  }
+  const themeCss = `${appearance}:root{--logo-h:${clampLogoHeight(s.logoHeight ?? DEFAULT_SETTINGS.logoHeight)}px}`;
+  const fontHref = fontsHref(s.font || DEFAULT_SETTINGS.font, findUiStyle(s.uiStyle));
 
   return (
     <html lang="en" data-theme-mode={s.themeMode || 'light'} suppressHydrationWarning>
@@ -111,7 +84,7 @@ export default async function RootLayout({
             <link rel="stylesheet" href={fontHref} />
           </>
         )}
-        <style dangerouslySetInnerHTML={{ __html: themeCss }} />
+        <style id="org-appearance" dangerouslySetInnerHTML={{ __html: themeCss }} />
         {THEME_SCRIPT && <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />}
       </head>
       <body>

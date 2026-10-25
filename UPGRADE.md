@@ -1,5 +1,81 @@
 # Nibras LMS — upgrade notes
 
+## Update 2 — design, themes & security (October 2026)
+
+Apply on top of Update 1. **No database migration is needed**: every new setting and user field has a safe default, and nobody is signed out by deploying.
+
+### How to apply
+
+1. Copy every file from this package into your project, keeping the same paths (overwrite existing files). `CHANGES.md` lists each file as NEW or UPDATED.
+2. **Delete** the 7 files listed under "Delete these files" in `CHANGES.md`.
+3. Run `pnpm install` (adds the `qrcode` package, used for the two-step sign-in QR code), then commit.
+4. Deploy to a **Vercel preview** first and run the checklist below.
+
+### New environment variable (optional)
+
+| Variable | What it does | Default |
+|---|---|---|
+| `AUTH_2FA` | Emergency only: `off` skips the two-step code at sign-in for everyone (e.g. if many people lose their phones). Redeploy after changing it. | on |
+
+### What's new
+
+**Appearance**
+- **550 colour themes** in 35 categories. Every theme passes contrast checks in light AND dark mode.
+- **Deluxe** (24) and **Anime Deluxe** (28) themes come with original illustrated scenes, each with a night version for dark mode: sakura, moonlit shrine, lantern festival, starfall, waves, frost, storm, koi pond, sky islands, art deco, marble and more.
+- **156 design styles**: every style from your list plus Classic, Deluxe, Anime Deluxe, Anime Night Festival, Royal Palace and Retro Futurism Classic. Examples: Glassmorphism, Liquid Glass, Neumorphism, Claymorphism, Neobrutalism, Windows 95/XP, Cyberpunk HUD, Art Deco, Hand-Drawn, Pixel Art, Terminal and Kawaii. Any style works with any colour theme.
+- **Artwork slot:** upload your own (licensed) artwork; it appears on the dashboard welcome card and the sign-in page.
+- **Personal appearance:** each user can pick their own theme and style in Profile → Appearance, if the admin allows it.
+
+**Settings page** (fully redesigned)
+- Section navigation (sidebar on desktop, swipeable pills on phones) and a search across every setting.
+- One sticky save bar showing how many changes are unsaved, with Discard and Ctrl/⌘ S.
+- A warning if you try to leave with unsaved changes.
+- **Live preview:** appearance changes, and hovering a theme or style, restyle the whole page instantly. Nothing is saved until you press Save.
+- New sections: Appearance studio, Security, Maintenance.
+
+**Whole app**
+- New sidebar: search box, collapsible rail (remembered), tooltips.
+- New top bar: account menu with mode switch and sign-out.
+- **Mobile bottom tab bar.**
+- **Command palette (Ctrl/⌘ K or /):** jump to any page, run quick actions, and search programs, sessions, assignments, quizzes and users. Results are role-aware and rate-limited.
+- **Profile** redesigned with tabs: Account, Security and Appearance.
+- Sign-in page shows the form on a card.
+- Long titles no longer push pages sideways on phones.
+
+**Security**
+- **Two-step sign-in** (authenticator app, e.g. Google Authenticator or Microsoft Authenticator):
+  - Setup with a QR code, plus 10 single-use recovery codes.
+  - A code can't be reused (replay protection); wrong codes count towards the sign-in rate limit.
+  - Policy (royal admins only): *Optional* (default) · *Required for admins* · *Admins & mentors* · *Everyone* · *Off*.
+  - When it's required, people are sent to set it up; they are never locked out.
+  - A royal admin can reset a user's two-step sign-in from the user's page.
+- **Session length** setting (default 30 days). Sessions from before this update are not affected.
+- **Minimum password length** for self-chosen passwords. Passwords admins set, such as phone numbers, are not affected.
+- **New-network sign-in alerts** for admins and mentors (in-app).
+- Profile shows **recent sign-in activity** (browser, OS, IP).
+- **Security dashboard** shows two-step adoption by role.
+- Removed three public demo pages (`/test-theme`, `/theme-demo`, `/theme-settings`) that exposed settings to anyone.
+- `scripts/seed.ts` contained a **real admin password**. It now reads `SEED_ADMIN_*` environment variables. **If that admin account still uses the old password, change it.**
+- A database hiccup no longer caches the default settings for an hour.
+
+### Test checklist (on the preview)
+
+- [ ] Existing users stay signed in; the site looks exactly as before (Classic style + your theme).
+- [ ] Settings → Appearance: hover themes and styles (live preview), pick one, Save, then reload: everyone sees it.
+- [ ] Try the Anime Deluxe → Sakura Spirit theme in light and dark mode.
+- [ ] Profile → Appearance: pick a personal theme and style.
+- [ ] Profile → Security: turn on two-step sign-in, save the recovery codes, sign out, and sign in with a code.
+- [ ] Ctrl/⌘ K: search for a program name.
+- [ ] On a phone: bottom tab bar, Menu drawer, Settings sections.
+
+### Rollback
+
+Redeploy the previous Vercel deployment. The new fields are ignored by the old code. Two-step sign-in simply stops being asked for until you redeploy this version.
+
+---
+
+# Update 1
+
 This update adds features on top of the running LMS. **No database migration is needed.** Every new field has a default, and old records, sessions and logins keep working.
 
 ## Before you deploy

@@ -28,6 +28,7 @@ export default async function LoginPage({
       supportUrl={s.supportUrl || ''}
       notice={s.loginNotice || ''}
       passwordChanged={sp.changed === '1'}
+      heroArt={s.heroArt || ''}
     />
   );
 }

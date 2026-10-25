@@ -12,6 +12,7 @@ import { requireRole, isRoyal } from '@/lib/auth-helpers';
 import { updateSettings, getSettings } from '@/lib/settings';
 import { audit } from '@/lib/audit';
 import { DEFAULT_LIGHT } from '@/lib/theme-config';
+import { findUiStyle } from '@/lib/ui-styles';
 import { DEFAULT_MEMBER_ID_FORMAT, validateMemberIdFormat } from '@/lib/member-id';
 
 const color = z.string().min(1).max(200);
@@ -30,6 +31,7 @@ const paletteSchema = z.object({
   // New keys — optional so older saved palettes still validate
   heroBg: color.optional().default(DEFAULT_LIGHT.heroBg),
   accent: color.optional().default(DEFAULT_LIGHT.accent),
+  primary2: z.string().max(200).optional().default(''),
 });
 
 const urlOrEmpty = z
@@ -131,7 +133,27 @@ const schema = z.object({
   // Maintenance (royal only)
   maintenanceMode: z.boolean().optional().default(false),
   maintenanceMessage: z.string().max(300).optional().default(''),
+
+  // Appearance
+  uiStyle: z
+    .string()
+    .max(60)
+    .optional()
+    .default('classic')
+    .refine((v) => !!findUiStyle(v), { message: 'Unknown design style' }),
+  allowUserStyles: z.boolean().optional().default(true),
+  showScene: z.boolean().optional().default(true),
+  heroArt: urlOrEmpty,
+
+  // Security (royal only when changed)
+  twoFactorPolicy: z.enum(['off', 'optional', 'admins', 'staff', 'all']).optional().default('optional'),
+  sessionMaxHours: z.coerce.number().int().min(1, 'Session length must be at least 1 hour').max(2160, 'Session length can be at most 90 days').optional().default(720),
+  passwordMinLength: z.coerce.number().int().min(8, 'Minimum password length is 8').max(64).optional().default(8),
+  newSignInAlerts: z.boolean().optional().default(true),
 });
+
+/** Settings that weaken or tighten sign-in for everyone — royal admins only. */
+const SECURITY_KEYS = ['twoFactorPolicy', 'sessionMaxHours', 'passwordMinLength', 'newSignInAlerts'] as const;
 
 export type SettingsActionResult =
   | { ok: true }
@@ -159,6 +181,13 @@ export async function saveSettings(
     !(await isRoyal(admin))
   ) {
     return { ok: false, error: 'Only a royal admin can change maintenance mode.' };
+  }
+
+  if (
+    SECURITY_KEYS.some((k) => JSON.stringify(data[k]) !== JSON.stringify(before[k])) &&
+    !(await isRoyal(admin))
+  ) {
+    return { ok: false, error: 'Only a royal admin can change the security settings.' };
   }
 
   const changed = Object.keys(data).filter(

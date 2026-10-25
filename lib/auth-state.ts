@@ -24,13 +24,19 @@ export type AuthState = {
   royal: boolean;
   /** Personal theme preset id ('' = organisation theme). */
   themePreset: string;
+  /** Personal design style id ('' = organisation style). */
+  uiStyle: string;
+  /** Two-step sign-in is switched on for this account. */
+  twoFactorEnabled: boolean;
+  /** Profile photo URL ('' = initials). */
+  avatar: string;
 };
 
 const tag = (userId: string) => `auth-state:${userId}`;
 
 async function load(userId: string): Promise<AuthState | null> {
   await db();
-  const u = (await User.findById(userId).select('role status sessionVersion orgId name email royal themePreset').lean()) as
+  const u = (await User.findById(userId).select('role status sessionVersion orgId name email royal themePreset uiStyle twoFactorEnabled avatar').lean()) as
     | {
         role: Role;
         status: 'active' | 'disabled';
@@ -40,6 +46,9 @@ async function load(userId: string): Promise<AuthState | null> {
         email: string;
         royal?: boolean;
         themePreset?: string;
+        uiStyle?: string;
+        twoFactorEnabled?: boolean;
+        avatar?: string;
       }
     | null;
   if (!u) return null;
@@ -53,6 +62,9 @@ async function load(userId: string): Promise<AuthState | null> {
   return {
     royal,
     themePreset: u.themePreset ?? '',
+    uiStyle: u.uiStyle ?? '',
+    twoFactorEnabled: u.twoFactorEnabled === true,
+    avatar: u.avatar ?? '',
     role: u.role,
     status: u.status === 'disabled' ? 'disabled' : 'active',
     sessionVersion: Number(u.sessionVersion ?? 0) || 0,

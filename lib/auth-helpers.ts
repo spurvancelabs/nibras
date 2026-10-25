@@ -19,6 +19,12 @@ export type SessionUser = {
   royal?: boolean;
   /** Personal theme preset id ('' = organisation theme). */
   themePreset?: string;
+  /** Personal design style id ('' = organisation style). */
+  uiStyle?: string;
+  /** Two-step sign-in is on for this account. */
+  twoFactorEnabled?: boolean;
+  /** Profile photo URL. */
+  avatar?: string;
 };
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
@@ -27,10 +33,32 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   return session.user;
 }
 
-export async function requireAuth(): Promise<SessionUser> {
+/**
+ * Signed-in user, or redirect to /login.
+ * When Settings → Security REQUIRES two-step sign-in for this user's role and
+ * they haven't set it up yet, they are sent to Profile → Security first.
+ * The profile page / its actions pass { allowWithout2fa: true }.
+ */
+export async function requireAuth(opts: { allowWithout2fa?: boolean } = {}): Promise<SessionUser> {
   const user = await getCurrentUser();
   if (!user) redirect('/login');
+  if (!opts.allowWithout2fa && !user.twoFactorEnabled && (await mustSetUp2fa(user))) {
+    redirect('/profile?tab=security&required=1');
+  }
   return user;
+}
+
+/** True when the org policy requires 2FA for this user and it is off. Fail-open. */
+export async function mustSetUp2fa(user: SessionUser): Promise<boolean> {
+  if (user.twoFactorEnabled) return false;
+  try {
+    const [{ getSettings }, { policyRequires }] = await Promise.all([import('./settings'), import('./two-factor')]);
+    const s = await getSettings();
+    return policyRequires(s.twoFactorPolicy, user.role);
+  } catch (e) {
+    console.error('[requireAuth] 2FA policy check failed (allowing):', e);
+    return false;
+  }
 }
 
 async function logDenied(user: SessionUser, needed: string) {

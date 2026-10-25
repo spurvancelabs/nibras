@@ -70,7 +70,7 @@ const PALETTE_FIELDS: { key: keyof ThemePalette; label: string }[] = [
 
 function samePalette(a: ThemePalette, b: ThemePalette) {
   return (Object.keys(b) as (keyof ThemePalette)[]).every(
-    (k) => (a[k] ?? '').toLowerCase() === b[k].toLowerCase()
+    (k) => (a[k] ?? '').toLowerCase() === (b[k] ?? '').toLowerCase()
   );
 }
 

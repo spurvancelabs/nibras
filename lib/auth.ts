@@ -9,6 +9,10 @@
 //   4. auth() re-checks the account on every request (30 s cache, cleared
 //      instantly on admin changes): disabled users, changed roles and
 //      "sign out everywhere" take effect immediately.
+//   5. Two-step sign-in (authenticator code / recovery code) when switched on
+//      for the account. Emergency switch: AUTH_2FA=off.
+//   6. Session length from Settings → Security (cookies older than that are
+//      treated as signed out); new-network alerts for staff.
 // Kill switch: set AUTH_LIVE_CHECKS=off to turn layer 4 off (then redeploy).
 // =============================================================================
 
@@ -26,11 +30,26 @@ import { getCounts, hit, clear } from './rate-limit';
 import { clientIp } from './request-info';
 import { fingerprint } from './secret-box';
 import { audit } from './audit';
+import { verifySecondFactor, twoFactorDisabledByEnv } from './two-factor';
+import { getSettings } from './settings';
 
 const credentialsSchema = z.object({
   email: z.string().trim().email().max(254),
   password: z.string().min(1).max(200),
+  /** 6-digit authenticator code or a recovery code (two-step sign-in). */
+  otp: z.string().max(20).optional().default(''),
 });
+
+/** Messages the login form understands (NextAuth passes them as `error`). */
+export const TWO_FACTOR_REQUIRED = 'TWO_FACTOR_REQUIRED';
+export const TWO_FACTOR_INVALID = 'TWO_FACTOR_INVALID';
+
+/** Same network? (IPv4 /24 or IPv6 /64-ish) — keeps new-network alerts quiet on mobile data. */
+function sameNetwork(a?: string, b?: string): boolean {
+  if (!a || !b) return true;
+  if (a.includes('.') && b.includes('.')) return a.split('.').slice(0, 3).join('.') === b.split('.').slice(0, 3).join('.');
+  return a.split(':').slice(0, 4).join(':') === b.split(':').slice(0, 4).join(':');
+}
 
 // Extend the session type
 declare module 'next-auth' {
@@ -45,6 +64,14 @@ declare module 'next-auth' {
       royal?: boolean;
       /** personal theme preset id */
       themePreset?: string;
+      /** personal design style id */
+      uiStyle?: string;
+      /** two-step sign-in is on */
+      twoFactorEnabled?: boolean;
+      /** profile photo */
+      avatar?: string;
+      /** sign-in time (ms) */
+      at?: number;
     } & DefaultSession['user'];
   }
 
@@ -58,6 +85,8 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     sv?: number;
+    /** sign-in time (ms) — used for the "session length" setting */
+    at?: number;
   }
 }
 
@@ -95,6 +124,7 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        otp: { label: 'Code', type: 'text' },
       },
       async authorize(credentials, req) {
         const parsed = credentialsSchema.safeParse(credentials);
@@ -161,6 +191,72 @@ export const authOptions: NextAuthOptions = {
 
             if (user.status !== 'active') return null;
 
+            // ---- two-step sign-in ----
+            if (user.twoFactorEnabled === true && !twoFactorDisabledByEnv()) {
+              if (!parsed.data.otp.trim()) throw new Error(TWO_FACTOR_REQUIRED);
+              const second = await verifySecondFactor(String(user._id), parsed.data.otp);
+              if (second === 'invalid') {
+                await Promise.all([
+                  hit(keys.ipEmail, WINDOW_SECONDS),
+                  hit(keys.account, WINDOW_SECONDS),
+                  audit({
+                    orgId: String(user.orgId),
+                    action: 'auth.2fa_failed',
+                    targetIds: [String(user._id)],
+                    summary: email,
+                    ip,
+                    userAgent,
+                  }),
+                ]);
+                throw new Error(TWO_FACTOR_INVALID);
+              }
+              if (second === 'recovery') {
+                await audit({
+                  orgId: String(user.orgId),
+                  action: 'auth.recovery_used',
+                  actorId: String(user._id),
+                  actorEmail: user.email,
+                  actorName: user.name,
+                  targetIds: [String(user._id)],
+                  ip,
+                  userAgent,
+                });
+              }
+            }
+
+            // ---- new-network alert (staff only, in-app, never blocks) ----
+            if (user.role !== 'student' && user.lastLoginIp && ip && !sameNetwork(user.lastLoginIp as string, ip)) {
+              void (async () => {
+                try {
+                  const st = await getSettings();
+                  if (!st.newSignInAlerts) return;
+                  const { notify } = await import('./notifications');
+                  await notify({
+                    orgId: String(user.orgId),
+                    userId: String(user._id),
+                    type: 'security.signin',
+                    title: 'New sign-in to your account',
+                    body: `From a new network (${ip}). If this wasn't you, change your password and turn on two-step sign-in.`,
+                    link: '/profile?tab=security',
+                    dedupeKey: `signin:${String(user._id)}:${ip}:${new Date().toISOString().slice(0, 10)}`,
+                  });
+                  await audit({
+                    orgId: String(user.orgId),
+                    action: 'auth.new_network',
+                    actorId: String(user._id),
+                    actorEmail: user.email,
+                    actorName: user.name,
+                    targetIds: [String(user._id)],
+                    summary: `${user.lastLoginIp} → ${ip}`,
+                    ip,
+                    userAgent,
+                  });
+                } catch (e) {
+                  console.error('[auth] new-network alert failed', e);
+                }
+              })();
+            }
+
             await Promise.all([
               clear([keys.ipEmail, keys.account]),
               User.updateOne(
@@ -189,6 +285,10 @@ export const authOptions: NextAuthOptions = {
             };
           }
         } catch (error) {
+          // Two-step messages go back to the login form as-is.
+          if (error instanceof Error && (error.message === TWO_FACTOR_REQUIRED || error.message === TWO_FACTOR_INVALID)) {
+            throw error;
+          }
           console.error('Auth error:', error);
           return null;
         }
@@ -221,10 +321,13 @@ export const authOptions: NextAuthOptions = {
       // would be signed out right after signing in.
       const prevSv = (params.token as { sv?: number } | undefined)?.sv;
       const token = baseCallbacks.jwt ? await baseCallbacks.jwt(params) : params.token;
+      const prevAt = (params.token as { at?: number } | undefined)?.at;
       if (params.user) {
         token.sv = Number((params.user as { sessionVersion?: number }).sessionVersion ?? 0) || 0;
-      } else if (typeof token.sv !== 'number' && typeof prevSv === 'number') {
-        token.sv = prevSv;
+        token.at = Date.now();
+      } else {
+        if (typeof token.sv !== 'number' && typeof prevSv === 'number') token.sv = prevSv;
+        if (typeof token.at !== 'number' && typeof prevAt === 'number') token.at = prevAt;
       }
       return token;
     },
@@ -233,6 +336,8 @@ export const authOptions: NextAuthOptions = {
       if (session?.user) {
         const sv = (params.token as { sv?: number } | undefined)?.sv;
         (session.user as { sv?: number }).sv = typeof sv === 'number' ? sv : 0;
+        const at = (params.token as { at?: number } | undefined)?.at;
+        if (typeof at === 'number') (session.user as { at?: number }).at = at;
       }
       return session;
     },
@@ -264,11 +369,26 @@ export async function auth() {
   if (state.status !== 'active') return null;
   if ((session.user.sv ?? 0) < state.sessionVersion) return null;
 
+  // Session length (Settings → Security). Old cookies without a sign-in time
+  // are left alone, so nobody is signed out by deploying this.
+  const at = session.user.at;
+  if (typeof at === 'number') {
+    try {
+      const { sessionMaxHours } = await getSettings();
+      if (Date.now() - at > sessionMaxHours * 3_600_000) return null;
+    } catch {
+      /* fail-open */
+    }
+  }
+
   session.user.role = state.role;
   session.user.orgId = state.orgId;
   session.user.name = state.name;
   session.user.royal = state.royal;
   session.user.themePreset = state.themePreset;
+  session.user.uiStyle = state.uiStyle;
+  session.user.twoFactorEnabled = state.twoFactorEnabled;
+  session.user.avatar = state.avatar;
   return session;
 }
 

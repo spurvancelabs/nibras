@@ -10,6 +10,8 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireRole, isRoyal } from '@/lib/auth-helpers';
 import RoyalToggle from './RoyalToggle';
+import ResetTwoFactor from './ResetTwoFactor';
+import { twoFactorStatus } from '@/lib/two-factor';
 import { getUserById, getUserFootprint } from '@/lib/users';
 import { listPrograms } from '@/lib/programs';
 import { getSettings } from '@/lib/settings';
@@ -99,6 +101,10 @@ export default async function EditUserPage({
         memberIdFormat={settings.memberIdFormat}
         viewerRoyal={viewerRoyal}
       />
+
+      {viewerRoyal && !isSelf && (
+        <ResetTwoFactor userId={user.id} name={user.name} enabled={(await twoFactorStatus(admin.orgId, user.id).catch(() => ({ enabled: false }))).enabled} />
+      )}
 
       {viewerRoyal && user.role === 'admin' && !isSelf && user.status === 'active' && (
         <RoyalToggle userId={user.id} name={user.name} royal={user.royal} fromEnv={user.royalFromEnv} />

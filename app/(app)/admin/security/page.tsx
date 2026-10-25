@@ -15,6 +15,8 @@ import { formatDateTime, formatRelative, timeZoneLabel } from '@/lib/time';
 import { PageHeader, Panel, PanelLink, Badge, Alert, EmptyNote, Icons } from '@/components/ui';
 import Avatar from '@/components/Avatar';
 import { ClaimRoyal, EmergencySignOut } from './SecurityControls';
+import { twoFactorStats } from '@/lib/two-factor';
+import { getSettings } from '@/lib/settings';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,11 +28,13 @@ const shield = (
 
 export default async function SecurityPage() {
   const me = await requireRoyal();
-  const [hasRoyal, stats, admins, privileged] = await Promise.all([
+  const [hasRoyal, stats, admins, privileged, tfa, settings] = await Promise.all([
     orgHasRoyal(me.orgId),
     getSecurityStats(me.orgId),
     listAdmins(me.orgId),
     listAudit(me.orgId, { group: 'security.|user.|settings.|program.|certificate.', limit: 12 }),
+    twoFactorStats(me.orgId).catch(() => []),
+    getSettings(),
   ]);
 
   const tiles = [
@@ -95,6 +99,37 @@ export default async function SecurityPage() {
         Last 7 days: {stats.window7d.logins} sign-ins · {stats.window7d.failed} failed · {stats.window7d.blocked} blocked ·{' '}
         {stats.window7d.denied} access denied
       </p>
+
+      {/* Two-step sign-in adoption */}
+      <section className="bg-surface border border-border rounded-[var(--radius-lg)] p-5 sm:p-6 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <div className="flex-1">
+            <h2 className="font-semibold">Two-step sign-in</h2>
+            <p className="text-sm text-muted">
+              Policy: <b className="text-text">{settings.twoFactorPolicy}</b> · session length {Math.round(settings.sessionMaxHours / 24) || 1} day(s)
+            </p>
+          </div>
+          <Link href="/admin/settings?section=security" className="btn-outline h-10 px-4 text-sm">
+            Change policy
+          </Link>
+        </div>
+        <div className="grid sm:grid-cols-3 gap-3">
+          {tfa.map((r) => {
+            const pct = r.total ? Math.round((r.enabled / r.total) * 100) : 0;
+            return (
+              <div key={r.role} className="p-4 rounded-[var(--radius-md)] border border-border">
+                <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted">{r.role}s protected</p>
+                <p className="mt-1 text-2xl font-semibold tabular-nums">
+                  {pct}% <span className="text-sm font-normal text-muted">({r.enabled}/{r.total})</span>
+                </p>
+                <div className="mt-2 h-2 rounded-full bg-hero overflow-hidden">
+                  <span className="block h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
       <div className="grid lg:grid-cols-2 gap-6">
         <Panel title="Most failed sign-ins (7 days) — accounts" icon={shield} bodyClassName="p-0">

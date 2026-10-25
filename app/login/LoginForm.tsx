@@ -21,6 +21,8 @@ type Props = {
   notice?: string;
   /** Came here after changing the password. */
   passwordChanged?: boolean;
+  /** Optional artwork from Settings → Appearance. */
+  heroArt?: string;
 };
 
 export default function LoginForm({
@@ -30,6 +32,7 @@ export default function LoginForm({
   supportUrl = '',
   notice = '',
   passwordChanged = false,
+  heroArt = '',
 }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -37,6 +40,10 @@ export default function LoginForm({
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Two-step sign-in
+  const [needCode, setNeedCode] = useState(false);
+  const [otp, setOtp] = useState('');
+  const [useRecovery, setUseRecovery] = useState(false);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -46,15 +53,24 @@ export default function LoginForm({
     const res = await signIn('credentials', {
       email,
       password,
+      otp: needCode ? otp : '',
       redirect: false,
     });
 
     if (!res || res.error) {
-      setError(
-        res?.error && /too many/i.test(res.error)
-          ? 'Too many sign-in attempts. Please wait 15 minutes and try again.'
-          : 'Invalid email or password'
-      );
+      const err = res?.error ?? '';
+      if (err.includes('TWO_FACTOR_REQUIRED')) {
+        setNeedCode(true);
+        setOtp('');
+      } else if (err.includes('TWO_FACTOR_INVALID')) {
+        setNeedCode(true);
+        setError(useRecovery ? 'That recovery code is not valid (each code works once).' : 'That code is not right. Use the newest code from your app.');
+      } else if (/too many/i.test(err)) {
+        setError('Too many sign-in attempts. Please wait 15 minutes and try again.');
+      } else {
+        setNeedCode(false);
+        setError('Invalid email or password');
+      }
       setLoading(false);
       return;
     }
@@ -80,7 +96,7 @@ export default function LoginForm({
   );
 
   return (
-    <main className="min-h-screen grid lg:grid-cols-[1.05fr_1fr] bg-bg text-text">
+    <main className="min-h-dvh grid lg:grid-cols-[1.05fr_1fr] text-text">
       {/* ---------------- Brand panel (desktop) ---------------- */}
       <section className="relative hidden lg:flex flex-col justify-between overflow-hidden bg-hero p-12 xl:p-16">
         <span
@@ -126,13 +142,22 @@ export default function LoginForm({
           </div>
         </div>
 
+        {heroArt && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={heroArt}
+            alt=""
+            aria-hidden
+            className="pointer-events-none absolute right-6 bottom-0 max-h-[70%] max-w-[55%] object-contain drop-shadow-2xl"
+          />
+        )}
         <p className="relative text-xs text-muted">
           © {new Date().getFullYear()} {orgName}
         </p>
       </section>
 
       {/* ---------------- Form ---------------- */}
-      <section className="flex flex-col min-h-screen">
+      <section className="flex flex-col min-h-dvh">
         <div className="flex items-center justify-between px-5 sm:px-8 min-h-16 py-2 lg:hidden bg-hero">
           {brand}
           <Link href="/" className="text-sm text-muted hover:text-text transition">
@@ -141,10 +166,16 @@ export default function LoginForm({
         </div>
 
         <div className="flex-1 flex items-center justify-center px-5 py-10 sm:px-8">
-          <form onSubmit={onSubmit} className="w-full max-w-sm space-y-6">
+          <form onSubmit={onSubmit} className="w-full max-w-md space-y-6 bg-surface border border-border rounded-[var(--radius-lg)] p-6 sm:p-8 shadow-xl">
             <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight">Sign in</h1>
-              <p className="text-sm text-muted">Use the account your admin created for you.</p>
+              <h1 className="text-3xl font-semibold tracking-tight">{needCode ? 'Two-step sign-in' : 'Sign in'}</h1>
+              <p className="text-sm text-muted">
+                {needCode
+                  ? useRecovery
+                    ? 'Enter one of your recovery codes (XXXX-XXXX).'
+                    : 'Open your authenticator app and enter the 6-digit code.'
+                  : 'Use the account your admin created for you.'}
+              </p>
             </div>
 
             {passwordChanged && !error && (
@@ -164,7 +195,33 @@ export default function LoginForm({
               </div>
             )}
 
-            <div className="space-y-4">
+            {needCode && (
+              <div className="space-y-3">
+                <input
+                  id="otp"
+                  className="input h-14 text-center text-2xl font-mono tracking-[0.35em]"
+                  inputMode={useRecovery ? 'text' : 'numeric'}
+                  autoComplete="one-time-code"
+                  autoFocus
+                  required
+                  maxLength={useRecovery ? 9 : 7}
+                  placeholder={useRecovery ? 'XXXX-XXXX' : '000000'}
+                  value={otp}
+                  onChange={(e) => setOtp(useRecovery ? e.target.value.toUpperCase() : e.target.value.replace(/[^\d ]/g, ''))}
+                  aria-label={useRecovery ? 'Recovery code' : '6-digit code'}
+                />
+                <div className="flex items-center justify-between text-xs">
+                  <button type="button" className="underline text-muted hover:text-text" onClick={() => { setUseRecovery((v) => !v); setOtp(''); setError(''); }}>
+                    {useRecovery ? 'Use the authenticator app instead' : 'Lost your phone? Use a recovery code'}
+                  </button>
+                  <button type="button" className="underline text-muted hover:text-text" onClick={() => { setNeedCode(false); setOtp(''); setError(''); }}>
+                    Back
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className={`space-y-4 ${needCode ? 'hidden' : ''}`}>
               <div>
                 <label className="label" htmlFor="email">Email</label>
                 <div className="relative">
@@ -229,7 +286,7 @@ export default function LoginForm({
               {loading && (
                 <span className="w-4 h-4 rounded-full border-2 border-primary-fg/30 border-t-primary-fg animate-spin" />
               )}
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? (needCode ? 'Checking…' : 'Signing in…') : needCode ? 'Verify' : 'Sign in'}
             </button>
 
             {notice && (

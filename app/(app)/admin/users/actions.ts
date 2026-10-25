@@ -555,3 +555,27 @@ export async function claimRoyalAction(): Promise<ActionResult> {
   revalidatePath('/admin/users', 'layout');
   return { ok: true };
 }
+
+/**
+ * Reset a user's two-step sign-in (lost phone and no recovery codes).
+ * Royal admins only. The user can sign in with just their password and set
+ * it up again. Audited.
+ */
+export async function resetTwoFactorAction(raw: unknown): Promise<ActionResult> {
+  const admin = (await requireRole('admin')) as Admin;
+  const parsed = z.object({ id: idField }).safeParse(raw);
+  if (!parsed.success) return { ok: false, error: 'Invalid input' };
+  if (!(await isRoyal(admin as never))) return { ok: false, error: 'Only a royal admin can do this.' };
+  const target = (await getRoleInfo(admin.orgId, [parsed.data.id])).get(parsed.data.id);
+  if (!target) return { ok: false, error: 'User not found' };
+  const { clearTwoFactor } = await import('@/lib/two-factor');
+  await clearTwoFactor(admin.orgId, parsed.data.id);
+  await audit({
+    ...actor(admin),
+    action: 'security.2fa_reset',
+    targetIds: [parsed.data.id],
+    summary: `${target.name ?? 'User'} <${target.email ?? ''}>`,
+  });
+  revalidateUsers(parsed.data.id);
+  return { ok: true };
+}

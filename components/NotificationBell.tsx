@@ -135,7 +135,7 @@ export default function NotificationBell() {
 
       {open && (
         <div
-          className="fixed inset-x-3 top-[4.5rem] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-3 sm:w-96 bg-surface border border-border rounded-[var(--radius-lg)] shadow-2xl z-50 overflow-hidden"
+          className="ui-popover fixed inset-x-3 top-[4.5rem] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-3 sm:w-96 bg-surface border border-border rounded-[var(--radius-lg)] shadow-2xl z-50 overflow-hidden"
         >
           <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
             <div className="flex items-center gap-2">

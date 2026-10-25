@@ -938,3 +938,12 @@ export async function setThemePreset(orgId: string, id: string, presetId: string
   await invalidateAuthState([id]);
   return { ok: true };
 }
+
+/** Personal design style. '' = follow the organisation style. */
+export async function setUiStyle(orgId: string, id: string, styleId: string): Promise<Ok | Err> {
+  if (!isId(id)) return { ok: false, error: 'User not found' };
+  await db();
+  await User.updateOne({ _id: id, orgId }, { $set: { uiStyle: styleId.slice(0, 60) } });
+  await invalidateAuthState([id]);
+  return { ok: true };
+}

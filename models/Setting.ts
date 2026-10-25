@@ -31,6 +31,7 @@ const PaletteSchema = new Schema<ThemePalette>(
     danger: { type: String, default: DEFAULT_LIGHT.danger },
     heroBg: { type: String, default: DEFAULT_LIGHT.heroBg },
     accent: { type: String, default: DEFAULT_LIGHT.accent },
+    primary2: { type: String, default: '' },
   },
   { _id: false }
 );
@@ -93,6 +94,18 @@ const SettingSchema = new Schema(
     certFooterText: { type: String, default: '' },
     maintenanceMode: { type: Boolean, default: false },
     maintenanceMessage: { type: String, default: DEFAULT_SETTINGS.maintenanceMessage },
+
+    // Appearance (design style + scene art)
+    uiStyle: { type: String, default: DEFAULT_SETTINGS.uiStyle, maxlength: 60 },
+    allowUserStyles: { type: Boolean, default: true },
+    showScene: { type: Boolean, default: true },
+    heroArt: { type: String, default: '' },
+
+    // Security
+    twoFactorPolicy: { type: String, enum: ['off', 'optional', 'admins', 'staff', 'all'], default: 'optional' },
+    sessionMaxHours: { type: Number, default: 720, min: 1, max: 2160 },
+    passwordMinLength: { type: Number, default: 8, min: 8, max: 64 },
+    newSignInAlerts: { type: Boolean, default: true },
 
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },

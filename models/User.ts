@@ -5,6 +5,8 @@
 //   sessionVersion    bumped to sign a user out of every device
 //   lastLoginAt/Ip    shown to admins ("never signed in" filter)
 //   passwordChangedAt set when a password is set or reset
+//   uiStyle           personal design style
+//   twoFactor*        two-step sign-in with an authenticator app
 // =============================================================================
 
 import { Schema, model, models, type InferSchemaType } from 'mongoose';
@@ -50,6 +52,20 @@ const UserSchema = new Schema(
 
     // Personal theme (preset id). '' = use the organisation's theme.
     themePreset: { type: String, default: '', maxlength: 60 },
+    // Personal design style id. '' = use the organisation's style.
+    uiStyle: { type: String, default: '', maxlength: 60 },
+
+    // --- two-step sign-in (TOTP authenticator app) — all optional ----------
+    twoFactorEnabled: { type: Boolean, default: false },
+    /** AES-GCM sealed base32 secret (lib/secret-box). */
+    twoFactorSecret: { type: String, select: false },
+    /** Sealed secret waiting for the first code during setup. */
+    twoFactorPending: { type: String, select: false },
+    /** SHA-256 hashes of unused one-time recovery codes. */
+    twoFactorRecovery: { type: [String], select: false, default: undefined },
+    /** Last accepted 30-second step (blocks re-using a code). */
+    twoFactorLastStep: { type: Number, select: false, default: 0 },
+    twoFactorEnabledAt: { type: Date },
   },
   { timestamps: true }
 );

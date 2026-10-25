@@ -9,6 +9,8 @@
 
 import { DEFAULT_MEMBER_ID_FORMAT } from './member-id';
 import { GENERATED_PRESETS, HIGH_CONTRAST } from './theme-presets';
+import type { SceneId } from './theme-scenes';
+import { UI_FONTS, googleSpecForStack } from './ui-fonts';
 
 export type ThemePalette = {
   primary: string;
@@ -25,6 +27,8 @@ export type ThemePalette = {
   heroBg: string;
   /** Soft decorative colour: blobs, icon tiles, avatar rings. */
   accent: string;
+  /** Gradient end colour (optional; readable with primaryFg). */
+  primary2?: string;
 };
 
 export type ThemeMode = 'light' | 'dark' | 'system';
@@ -95,7 +99,30 @@ export type ThemeSettings = {
   // Maintenance (royal admins only): students & mentors see a notice page
   maintenanceMode: boolean;
   maintenanceMessage: string;
+
+  // Design style (lib/ui-styles.ts) + scene art
+  /** Organisation design style id ('classic' = original look). */
+  uiStyle: string;
+  /** Let each user pick a personal design style. */
+  allowUserStyles: boolean;
+  /** Show the illustrated background of Deluxe / Anime themes. */
+  showScene: boolean;
+  /** Optional artwork (your own / licensed) shown on the dashboard & sign-in page. */
+  heroArt: string;
+
+  // Security
+  /** Two-step sign-in: 'off' | 'optional' | 'admins' (required for admins) | 'staff' (admins + mentors) | 'all'. */
+  twoFactorPolicy: TwoFactorPolicy;
+  /** Sign everyone out after this many hours (1–2160). */
+  sessionMaxHours: number;
+  /** Minimum length for passwords people choose themselves (8–64). */
+  passwordMinLength: number;
+  /** In-app alert when someone signs in from a new network. */
+  newSignInAlerts: boolean;
 };
+
+export type TwoFactorPolicy = 'off' | 'optional' | 'admins' | 'staff' | 'all';
+export const TWO_FACTOR_POLICIES: TwoFactorPolicy[] = ['off', 'optional', 'admins', 'staff', 'all'];
 
 export type AnnouncementTone = 'info' | 'success' | 'warning' | 'danger';
 
@@ -110,6 +137,10 @@ export type ThemePreset = {
   font: string;
   radiusMd: string;
   radiusLg: string;
+  /** Illustrated background (Deluxe / Anime Deluxe themes). */
+  scene?: SceneId;
+  /** Recommended design style id. */
+  uiStyle?: string;
 };
 
 /** Allowed logo height range (px) for the Settings slider. */
@@ -130,26 +161,33 @@ const STATUS_DARK = { success: '#22c55e', warning: '#f59e0b', danger: '#f87171' 
 // ---------------------------------------------------------------------------
 
 export const FONT_OPTIONS = [
-  { label: 'Poppins', value: 'Poppins, ui-sans-serif, system-ui, sans-serif' },
-  { label: 'Inter', value: 'Inter, ui-sans-serif, system-ui, sans-serif' },
-  { label: 'DM Sans', value: '"DM Sans", ui-sans-serif, system-ui, sans-serif' },
-  { label: 'Plus Jakarta Sans', value: '"Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif' },
+  { label: 'Poppins', value: UI_FONTS.poppins.css },
+  { label: 'Inter', value: UI_FONTS.inter.css },
+  { label: 'DM Sans', value: UI_FONTS.dm.css },
+  { label: 'Plus Jakarta Sans', value: UI_FONTS.jakarta.css },
+  { label: 'Nunito', value: UI_FONTS.nunito.css },
+  { label: 'Quicksand', value: UI_FONTS.quicksand.css },
+  { label: 'Lexend', value: UI_FONTS.lexend.css },
+  { label: 'Manrope', value: UI_FONTS.manrope.css },
+  { label: 'Sora', value: UI_FONTS.sora.css },
+  { label: 'Outfit', value: UI_FONTS.outfit.css },
+  { label: 'Urbanist', value: UI_FONTS.urbanist.css },
+  { label: 'Roboto', value: UI_FONTS.roboto.css },
+  { label: 'M PLUS Rounded', value: UI_FONTS.mplusRounded.css },
+  { label: 'Lora (serif)', value: UI_FONTS.lora.css },
   { label: 'System', value: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif' },
   { label: 'Georgia', value: 'Georgia, Cambria, "Times New Roman", serif' },
   { label: 'Mono', value: 'ui-monospace, SFMono-Regular, Menlo, monospace' },
 ];
 
-const GOOGLE_FONTS: Record<string, string> = {
-  Poppins: 'Poppins:wght@400;500;600;700',
-  Inter: 'Inter:wght@400;500;600;700',
-  'DM Sans': 'DM+Sans:wght@400;500;600;700',
-  'Plus Jakarta Sans': 'Plus+Jakarta+Sans:wght@400;500;600;700',
-};
+/** Google Font spec for a font stack (null for system fonts). */
+export function googleFontSpec(font: string): string | null {
+  return googleSpecForStack(font);
+}
 
 /** Google Fonts stylesheet for the first family in a font stack, or null for system fonts. */
 export function googleFontHref(font: string): string | null {
-  const first = (font.split(',')[0] ?? '').trim().replace(/^["']|["']$/g, '');
-  const spec = GOOGLE_FONTS[first];
+  const spec = googleSpecForStack(font);
   return spec ? `https://fonts.googleapis.com/css2?family=${spec}&display=swap` : null;
 }
 
@@ -259,7 +297,7 @@ export const THEME_PRESETS: ThemePreset[] = [
     radiusMd: '8px',
     radiusLg: '16px',
     light: {
-      primary: '#e4572e', primaryFg: '#ffffff',
+      primary: '#c4421b', primaryFg: '#ffffff',
       bg: '#ffffff', surface: '#ffffff', border: '#f2e4dd',
       muted: '#75645d', text: '#24140f',
       heroBg: '#fff1eb', accent: '#fbd9cb',
@@ -348,6 +386,16 @@ export const DEFAULT_SETTINGS: ThemeSettings = {
 
   maintenanceMode: false,
   maintenanceMessage: 'We are doing some maintenance. Please check back shortly.',
+
+  uiStyle: 'classic',
+  allowUserStyles: true,
+  showScene: true,
+  heroArt: '',
+
+  twoFactorPolicy: 'optional',
+  sessionMaxHours: 720,
+  passwordMinLength: 8,
+  newSignInAlerts: true,
 };
 
 /** Boolean settings and their defaults (used when reading old documents). */
@@ -361,4 +409,19 @@ export const BOOLEAN_SETTING_DEFAULTS = {
   announcementEnabled: false,
   maintenanceMode: false,
   memberIdRequired: false,
+  allowUserStyles: true,
+  showScene: true,
+  newSignInAlerts: true,
 } as const;
+
+/** Numeric settings: [min, max, default]. */
+export const NUMBER_SETTING_LIMITS = {
+  sessionMaxHours: [1, 2160, 720],
+  passwordMinLength: [8, 64, 8],
+} as const;
+
+export function clampSettingNumber(key: keyof typeof NUMBER_SETTING_LIMITS, v: unknown): number {
+  const [min, max, def] = NUMBER_SETTING_LIMITS[key];
+  const n = Math.round(Number(v));
+  return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : def;
+}

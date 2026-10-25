@@ -13,7 +13,14 @@ import Setting, {
   type ThemeSettings,
   type ThemePalette,
 } from '@/models/Setting';
-import { clampLogoHeight, BOOLEAN_SETTING_DEFAULTS } from '@/lib/theme-config';
+import {
+  clampLogoHeight,
+  clampSettingNumber,
+  BOOLEAN_SETTING_DEFAULTS,
+  NUMBER_SETTING_LIMITS,
+  TWO_FACTOR_POLICIES,
+} from '@/lib/theme-config';
+import { findUiStyle, DEFAULT_UI_STYLE_ID } from '@/lib/ui-styles';
 
 function mergePalette(
   base: ThemePalette,
@@ -43,24 +50,43 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
       ? (d.partnerLogos as unknown[]).filter((x): x is string => typeof x === 'string')
       : [],
     ...bools,
+    uiStyle: typeof d.uiStyle === 'string' && findUiStyle(d.uiStyle) ? d.uiStyle : DEFAULT_UI_STYLE_ID,
+    heroArt: typeof d.heroArt === 'string' ? d.heroArt : '',
+    twoFactorPolicy: TWO_FACTOR_POLICIES.includes(d.twoFactorPolicy as never)
+      ? (d.twoFactorPolicy as ThemeSettings['twoFactorPolicy'])
+      : DEFAULT_SETTINGS.twoFactorPolicy,
+    sessionMaxHours: clampSettingNumber('sessionMaxHours', d.sessionMaxHours ?? DEFAULT_SETTINGS.sessionMaxHours),
+    passwordMinLength: clampSettingNumber('passwordMinLength', d.passwordMinLength ?? DEFAULT_SETTINGS.passwordMinLength),
   } as ThemeSettings;
 }
 
 async function fetchSettings(): Promise<ThemeSettings> {
+  // Errors are thrown (not turned into defaults) so a failed read is never
+  // cached — the next request simply tries the database again.
+  await db();
+  const doc = await Setting.findOne({ key: 'global' }).lean();
+  return mergeSettings(doc as Record<string, unknown> | null);
+}
+
+const cachedSettings = unstable_cache(fetchSettings, ['global-settings', 'v2'], {
+  tags: ['settings'],
+  revalidate: 3600,
+});
+
+/**
+ * Cached settings. The cached value is merged with the defaults again on every
+ * read, so a cache entry written by an older version of the app (missing new
+ * fields) can never produce `undefined` settings after a deploy.
+ */
+export async function getSettings(): Promise<ThemeSettings> {
   try {
-    await db();
-    const doc = await Setting.findOne({ key: 'global' }).lean();
-    return mergeSettings(doc as Record<string, unknown> | null);
+    return mergeSettings((await cachedSettings()) as unknown as Record<string, unknown>);
   } catch (err) {
+    // Database unreachable: keep the site up with the default look (not cached).
     console.error('[settings] fetch failed, using defaults:', err);
     return DEFAULT_SETTINGS;
   }
 }
-
-export const getSettings = unstable_cache(fetchSettings, ['global-settings'], {
-  tags: ['settings'],
-  revalidate: 3600,
-});
 
 export async function updateSettings(
   patch: Partial<ThemeSettings>,
@@ -78,6 +104,8 @@ export async function updateSettings(
       clean[k] = v === true;
     } else if (k === 'logoHeight') {
       clean[k] = clampLogoHeight(v);
+    } else if (k in NUMBER_SETTING_LIMITS) {
+      clean[k] = clampSettingNumber(k as keyof typeof NUMBER_SETTING_LIMITS, v);
     } else if (typeof v === 'string') {
       clean[k] = v;
     }

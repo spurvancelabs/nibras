@@ -1,27 +1,36 @@
 // =============================================================================
 // FILE: app/(app)/admin/settings/page.tsx
-// Admin → Global settings page (branding, theme, landing, members, contact).
+// Admin → Settings (redesigned). Sections: General, Branding, Landing page,
+// Appearance (550 themes + 150+ styles), Features, Announcement, Certificates,
+// Members & IDs, Security, Sign-in page, Maintenance.
+// Open a section directly with ?section=appearance (etc.).
 // =============================================================================
 
+import type { Metadata } from 'next';
 import { requireRole, isRoyal } from '@/lib/auth-helpers';
 import { getSettings } from '@/lib/settings';
-import SettingsForm from './SettingsForm';
-import { PageHeader } from '@/components/ui';
+import { twoFactorStats } from '@/lib/two-factor';
+import SettingsShell from './SettingsShell';
 
 export const dynamic = 'force-dynamic';
+export const metadata: Metadata = { title: 'Settings' };
 
-export default async function AdminSettingsPage() {
+export default async function AdminSettingsPage({ searchParams }: { searchParams: Promise<{ section?: string }> }) {
   const admin = await requireRole('admin');
-  const [settings, royal] = await Promise.all([getSettings(), isRoyal(admin)]);
+  const [settings, royal, sp, stats] = await Promise.all([
+    getSettings(),
+    isRoyal(admin),
+    searchParams,
+    twoFactorStats(admin.orgId).catch(() => []),
+  ]);
 
   return (
-    <div className="space-y-6">
-      <PageHeader
-        eyebrow="Admin"
-        title="Global settings"
-        subtitle="These settings apply across the entire platform."
-      />
-      <SettingsForm initial={settings} canMaintenance={royal} />
-    </div>
+    <SettingsShell
+      initial={settings}
+      canRoyal={royal}
+      initialSection={sp.section}
+      twoFactorStats={stats}
+      viewerHas2fa={admin.twoFactorEnabled === true}
+    />
   );
 }

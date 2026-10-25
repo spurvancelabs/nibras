@@ -21,6 +21,7 @@ import {
   ProgressRing,
   Icons,
 } from '@/components/ui';
+import { getSettings } from '@/lib/settings';
 import { formatDateTimeWeekday, formatTime, greetingFor, formatDayMonth } from '@/lib/time';
 
 export const dynamic = 'force-dynamic';
@@ -43,6 +44,9 @@ const rowCls =
 
 export default async function DashboardPage() {
   const user = await requireAuth();
+  const heroArt = await getSettings()
+    .then((st) => st.heroArt)
+    .catch(() => '');
 
   const [
     programs,
@@ -110,6 +114,16 @@ export default async function DashboardPage() {
           aria-hidden
           className="pointer-events-none hidden sm:block absolute right-40 bottom-4 w-24 h-16 text-muted opacity-40 bg-[radial-gradient(currentColor_1.3px,transparent_1.5px)] [background-size:16px_16px]"
         />
+        {heroArt && (
+          // Artwork from Settings → Appearance (decorative)
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={heroArt}
+            alt=""
+            aria-hidden
+            className="pointer-events-none hidden md:block absolute right-0 bottom-0 h-[115%] max-w-[38%] object-contain object-right-bottom opacity-95"
+          />
+        )}
         <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-muted capitalize">
