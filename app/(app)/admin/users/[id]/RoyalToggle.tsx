@@ -9,6 +9,7 @@ import { useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { setRoyalAction } from '../actions';
 import { Alert } from '@/components/ui';
+import { useConfirm, useSudo } from '@/components/feedback';
 
 export default function RoyalToggle({
   userId,
@@ -24,16 +25,18 @@ export default function RoyalToggle({
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<{ tone: 'error' | 'success'; text: string } | null>(null);
+  const confirm = useConfirm();
+  const sudo = useSudo();
 
-  function toggle() {
+  async function toggle() {
     const next = !royal;
     const text = next
       ? `Make ${name} a ROYAL ADMIN? They will be able to manage other admins and see all security logs.`
       : `Remove royal admin status from ${name}? They stay an admin.`;
-    if (!confirm(text)) return;
+    if (!(await confirm({ title: next ? 'Make royal admin?' : 'Remove royal status?', body: text, tone: next ? 'primary' : 'danger', confirmLabel: next ? 'Make royal' : 'Remove' }))) return;
     setMsg(null);
     start(async () => {
-      const res = await setRoyalAction({ id: userId, royal: next });
+      const res = await sudo(() => setRoyalAction({ id: userId, royal: next }));
       if (res.ok) {
         setMsg({ tone: 'success', text: next ? `${name} is now a royal admin.` : `${name} is no longer a royal admin.` });
         router.refresh();

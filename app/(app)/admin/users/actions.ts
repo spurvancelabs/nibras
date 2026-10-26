@@ -15,6 +15,7 @@
 'use server';
 
 import { z } from 'zod';
+import { requireRecentAuth, REAUTH_REQUIRED } from '@/lib/sudo';
 import { after } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { requireRole, isRoyal } from '@/lib/auth-helpers';
@@ -518,6 +519,7 @@ export async function setRoyalAction(raw: unknown): Promise<ActionResult> {
   if (!parsed.success) return { ok: false, error: 'Invalid input' };
   if (!(await isRoyal(admin as never))) return { ok: false, error: 'Only a royal admin can do this.' };
   if (parsed.data.id === admin.id) return { ok: false, error: "You can't change your own royal status." };
+  if (!(await requireRecentAuth(admin))) return { ok: false, error: REAUTH_REQUIRED };
 
   const target = (await getRoleInfo(admin.orgId, [parsed.data.id])).get(parsed.data.id);
   const res = await setRoyal(admin.orgId, parsed.data.id, parsed.data.royal);
@@ -568,6 +570,7 @@ export async function resetTwoFactorAction(raw: unknown): Promise<ActionResult> 
   if (!(await isRoyal(admin as never))) return { ok: false, error: 'Only a royal admin can do this.' };
   const target = (await getRoleInfo(admin.orgId, [parsed.data.id])).get(parsed.data.id);
   if (!target) return { ok: false, error: 'User not found' };
+  if (!(await requireRecentAuth(admin))) return { ok: false, error: REAUTH_REQUIRED };
   const { clearTwoFactor } = await import('@/lib/two-factor');
   await clearTwoFactor(admin.orgId, parsed.data.id);
   await audit({

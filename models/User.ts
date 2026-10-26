@@ -66,6 +66,30 @@ const UserSchema = new Schema(
     /** Last accepted 30-second step (blocks re-using a code). */
     twoFactorLastStep: { type: Number, select: false, default: 0 },
     twoFactorEnabledAt: { type: Date },
+
+    // --- Super Admin (highest level; see lib/super.ts) ---------------------
+    superAdmin: { type: Boolean, default: false },
+
+    // --- Premium membership (see lib/premium.ts) ---------------------------
+    /** Premium is active while premiumUntil is in the future. null = free. */
+    premiumUntil: { type: Date, default: null },
+    premiumSince: { type: Date, default: null },
+    /** How premium was obtained: 'admin' | 'code' | 'program' */
+    premiumSource: { type: String, default: '', maxlength: 20 },
+
+    // --- Inactivity automation (see lib/inactivity.ts) ---------------------
+    /** Never touched by inactivity automation. */
+    automationExempt: { type: Boolean, default: false },
+    /** Why the account is disabled (shown to admins). */
+    suspendedReason: { type: String, default: '', maxlength: 300 },
+    suspendedAt: { type: Date, default: null },
+    /** 'admin' | 'automation' */
+    suspendedBy: { type: String, default: '', maxlength: 20 },
+    reactivatedAt: { type: Date, default: null },
+
+    // --- Notification preferences -------------------------------------------
+    /** Receive emails for notifications (in-app notifications always on). */
+    emailNotifications: { type: Boolean, default: true },
   },
   { timestamps: true }
 );
@@ -73,6 +97,7 @@ const UserSchema = new Schema(
 UserSchema.index({ orgId: 1, email: 1 }, { unique: true });
 UserSchema.index({ orgId: 1, role: 1 });
 UserSchema.index({ orgId: 1, programIds: 1 });
+UserSchema.index({ orgId: 1, premiumUntil: 1 });
 // Unique only when a member ID is actually set (users without one are allowed).
 UserSchema.index(
   { orgId: 1, memberId: 1 },

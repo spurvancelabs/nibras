@@ -19,6 +19,7 @@ import {
   BOOLEAN_SETTING_DEFAULTS,
   NUMBER_SETTING_LIMITS,
   TWO_FACTOR_POLICIES,
+  OBJECT_SETTING_KEYS,
 } from '@/lib/theme-config';
 import { findUiStyle, DEFAULT_UI_STYLE_ID } from '@/lib/ui-styles';
 
@@ -35,9 +36,13 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
   for (const [k, def] of Object.entries(BOOLEAN_SETTING_DEFAULTS)) {
     bools[k] = typeof d[k] === 'boolean' ? (d[k] as boolean) : def;
   }
+  
+  // Remove internal Mongoose fields that shouldn't be sent to client
+  const { updatedBy, _id, __v, createdAt, updatedAt, ...cleanDoc } = d;
+  
   return {
     ...DEFAULT_SETTINGS,
-    ...d,
+    ...cleanDoc,
     light: mergePalette(DEFAULT_LIGHT, d.light as Partial<ThemePalette> | undefined),
     dark: mergePalette(DEFAULT_DARK, d.dark as Partial<ThemePalette> | undefined),
     logoHeight: clampLogoHeight(d.logoHeight ?? DEFAULT_SETTINGS.logoHeight),
@@ -57,7 +62,35 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
       : DEFAULT_SETTINGS.twoFactorPolicy,
     sessionMaxHours: clampSettingNumber('sessionMaxHours', d.sessionMaxHours ?? DEFAULT_SETTINGS.sessionMaxHours),
     passwordMinLength: clampSettingNumber('passwordMinLength', d.passwordMinLength ?? DEFAULT_SETTINGS.passwordMinLength),
+    ...numbers(d),
+    ...objects(d),
+    premiumName: typeof d.premiumName === 'string' && d.premiumName.trim() ? d.premiumName : DEFAULT_SETTINGS.premiumName,
   } as ThemeSettings;
+}
+
+function numbers(d: Record<string, unknown>) {
+  const out: Record<string, number> = {};
+  for (const k of Object.keys(NUMBER_SETTING_LIMITS) as (keyof typeof NUMBER_SETTING_LIMITS)[]) {
+    out[k] = clampSettingNumber(k, d[k] ?? (DEFAULT_SETTINGS as unknown as Record<string, number>)[k]);
+  }
+  return out;
+}
+
+/** Small JSON objects: keep only string→string entries (anything else → default). */
+function objects(d: Record<string, unknown>) {
+  const out: Record<string, Record<string, string>> = {};
+  for (const k of OBJECT_SETTING_KEYS) {
+    const v = d[k];
+    const def = (DEFAULT_SETTINGS as unknown as Record<string, Record<string, string>>)[k];
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      const clean: Record<string, string> = {};
+      for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
+        if (typeof vv === 'string' && kk.length <= 80) clean[kk] = vv;
+      }
+      out[k] = clean;
+    } else out[k] = { ...def };
+  }
+  return out;
 }
 
 async function fetchSettings(): Promise<ThemeSettings> {
@@ -104,6 +137,8 @@ export async function updateSettings(
       clean[k] = v === true;
     } else if (k === 'logoHeight') {
       clean[k] = clampLogoHeight(v);
+    } else if ((OBJECT_SETTING_KEYS as readonly string[]).includes(k) && v && typeof v === 'object') {
+      clean[k] = v; // validated by the settings action
     } else if (k in NUMBER_SETTING_LIMITS) {
       clean[k] = clampSettingNumber(k as keyof typeof NUMBER_SETTING_LIMITS, v);
     } else if (typeof v === 'string') {

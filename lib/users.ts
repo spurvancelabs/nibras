@@ -37,6 +37,7 @@ import {
 import { validatePassword } from './password';
 import { invalidateAuthState } from './auth-state';
 import { isEnvRoyal, invalidateOrgRoyal } from './royal';
+import { isEnvSuper, envSuperEmails, invalidateOrgSuper } from './super';
 
 export const BCRYPT_COST = 11;
 
@@ -55,11 +56,20 @@ export type UserListItem = {
   royal: boolean;
   /** Royal through ROYAL_ADMIN_EMAILS — can't be removed in the app. */
   royalFromEnv: boolean;
+  /** Super admin (database flag or SUPER_ADMIN_EMAILS). Bootstrap mode is not reflected here. */
+  superAdmin: boolean;
+  superFromEnv: boolean;
+  /** Premium membership end (ISO) or null. */
+  premiumUntil: string | null;
 };
 
 export type UserDetail = UserListItem & {
   lastLoginIp: string;
   passwordChangedAt: string | null;
+  automationExempt: boolean;
+  suspendedReason: string;
+  suspendedBy: string;
+  suspendedAt: string | null;
 };
 
 type Ok = { ok: true };
@@ -78,8 +88,11 @@ function toItem(u: any): UserListItem {
     createdAt: new Date(u.createdAt).toISOString(),
     memberId: u.memberId ?? '',
     lastLoginAt: u.lastLoginAt ? new Date(u.lastLoginAt).toISOString() : null,
-    royal: u.role === 'admin' && (u.royal === true || isEnvRoyal(u.email)),
+    royal: u.role === 'admin' && (u.royal === true || isEnvRoyal(u.email) || u.superAdmin === true || isEnvSuper(u.email)),
     royalFromEnv: u.role === 'admin' && isEnvRoyal(u.email),
+    superAdmin: u.role === 'admin' && (u.superAdmin === true || isEnvSuper(u.email)),
+    superFromEnv: u.role === 'admin' && isEnvSuper(u.email),
+    premiumUntil: u.premiumUntil ? new Date(u.premiumUntil).toISOString() : null,
   };
 }
 
@@ -300,6 +313,10 @@ export async function getUserById(orgId: string, id: string): Promise<UserDetail
     ...toItem(u),
     lastLoginIp: u.lastLoginIp ?? '',
     passwordChangedAt: u.passwordChangedAt ? new Date(u.passwordChangedAt).toISOString() : null,
+    automationExempt: u.automationExempt === true,
+    suspendedReason: u.suspendedReason ?? '',
+    suspendedBy: u.suspendedBy ?? '',
+    suspendedAt: u.suspendedAt ? new Date(u.suspendedAt).toISOString() : null,
   };
 }
 
@@ -502,6 +519,9 @@ export async function updateUser(
   if (patch.status !== undefined && patch.status !== before.status) {
     set.status = patch.status;
     changes.status = { from: before.status, to: patch.status };
+    // Reactivated by an admin: clear any pause reason and give automation a fresh start.
+    if (patch.status === 'active') Object.assign(set, { reactivatedAt: new Date(), suspendedReason: '', suspendedAt: null, suspendedBy: '' });
+    else Object.assign(set, { suspendedAt: new Date(), suspendedBy: 'admin' });
   }
   if (patch.avatar !== undefined && patch.avatar.trim() !== (before.avatar ?? '')) {
     const avErr = checkAvatar(patch.avatar);
@@ -620,6 +640,8 @@ export async function bulkUpdateUsers(
   const skippedSelf = ids.includes(actingUserId);
   const set: Record<string, unknown> = {};
   if (patch.status) set.status = patch.status;
+  if (patch.status === 'active') Object.assign(set, { reactivatedAt: new Date(), suspendedReason: '', suspendedAt: null, suspendedBy: '' });
+  if (patch.status === 'disabled') Object.assign(set, { suspendedAt: new Date(), suspendedBy: 'admin' });
   if (patch.role) set.role = patch.role;
   if (patch.role && patch.role !== 'admin') set.royal = false;
   if (!Object.keys(set).length || target.length === 0) {
@@ -915,6 +937,28 @@ export async function setRoyal(
     return { ok: false, error: 'This admin is royal through ROYAL_ADMIN_EMAILS — remove them there.' };
   }
   await User.updateOne({ _id: id, orgId }, { $set: { royal } });
+  await invalidateOrgRoyal(orgId);
+  const admins = (await User.find({ orgId, role: 'admin' }).select('_id').lean()).map((a) => String(a._id));
+  await invalidateAuthState(admins);
+  return { ok: true };
+}
+
+/** Grant or remove Super Admin (caller must be a Super Admin, or claiming during bootstrap). */
+export async function setSuperAdmin(orgId: string, id: string, value: boolean): Promise<Ok | Err> {
+  if (!isId(id)) return { ok: false, error: 'User not found' };
+  await db();
+  const u = (await User.findOne({ _id: id, orgId }).select('role status email').lean()) as { role: Role; status: string; email: string } | null;
+  if (!u) return { ok: false, error: 'User not found' };
+  if (value && (u.role !== 'admin' || u.status !== 'active')) return { ok: false, error: 'Only active admins can be made Super Admin' };
+  if (!value && isEnvSuper(u.email)) return { ok: false, error: 'This admin is Super Admin through SUPER_ADMIN_EMAILS — remove them there.' };
+  if (!value) {
+    // Never remove the last Super Admin (that would silently re-open bootstrap mode).
+    const others = await User.countDocuments({ orgId, role: 'admin', status: 'active', superAdmin: true, _id: { $ne: id } });
+    if (others === 0 && !envSuperEmails().length) return { ok: false, error: 'This is the only Super Admin. Make someone else Super Admin first.' };
+  }
+  // Super admins are always royal too.
+  await User.updateOne({ _id: id, orgId }, { $set: value ? { superAdmin: true, royal: true } : { superAdmin: false } });
+  await invalidateOrgSuper(orgId);
   await invalidateOrgRoyal(orgId);
   const admins = (await User.find({ orgId, role: 'admin' }).select('_id').lean()).map((a) => String(a._id));
   await invalidateAuthState(admins);

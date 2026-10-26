@@ -70,6 +70,10 @@ declare module 'next-auth' {
       twoFactorEnabled?: boolean;
       /** profile photo */
       avatar?: string;
+      /** effective Super Admin status (live) */
+      superAdmin?: boolean;
+      /** premium membership end (ISO) or null */
+      premiumUntil?: string | null;
       /** sign-in time (ms) */
       at?: number;
     } & DefaultSession['user'];
@@ -162,6 +166,8 @@ export const authOptions: NextAuthOptions = {
                 ip,
                 userAgent,
               });
+              // Tell the account owner and royal admins (at most once an hour each).
+              void alertBlockedSignIn(String(user.orgId), String(user._id), email, ip).catch(() => {});
             }
           } else {
             // Always run bcrypt so "no such email" takes as long as "wrong password".
@@ -189,7 +195,9 @@ export const authOptions: NextAuthOptions = {
               return null;
             }
 
-            if (user.status !== 'active') return null;
+            // Correct password but the account is disabled/paused: say so
+            // (safe — only revealed to someone who knows the password).
+            if (user.status !== 'active') throw new Error('ACCOUNT_DISABLED');
 
             // ---- two-step sign-in ----
             if (user.twoFactorEnabled === true && !twoFactorDisabledByEnv()) {
@@ -286,7 +294,7 @@ export const authOptions: NextAuthOptions = {
           }
         } catch (error) {
           // Two-step messages go back to the login form as-is.
-          if (error instanceof Error && (error.message === TWO_FACTOR_REQUIRED || error.message === TWO_FACTOR_INVALID)) {
+          if (error instanceof Error && (error.message === TWO_FACTOR_REQUIRED || error.message === TWO_FACTOR_INVALID || error.message === 'ACCOUNT_DISABLED')) {
             throw error;
           }
           console.error('Auth error:', error);
@@ -389,6 +397,8 @@ export async function auth() {
   session.user.uiStyle = state.uiStyle;
   session.user.twoFactorEnabled = state.twoFactorEnabled;
   session.user.avatar = state.avatar;
+  session.user.superAdmin = state.superAdmin;
+  session.user.premiumUntil = state.premiumUntil;
   return session;
 }
 
@@ -397,3 +407,35 @@ const nextAuthInstance = NextAuth(authOptions);
 export const { signIn, signOut } = nextAuthInstance as any;
 
 export default nextAuthInstance;
+
+/** In-app alerts for a blocked sign-in (deduplicated per hour). Never throws. */
+async function alertBlockedSignIn(orgId: string, userId: string, email: string, ip: string): Promise<void> {
+  try {
+    const { notify } = await import('./notifications');
+    const hour = new Date().toISOString().slice(0, 13);
+    await notify({
+      orgId,
+      userId,
+      type: 'security.signin',
+      title: 'Sign-in to your account was blocked',
+      body: `Too many wrong passwords were tried for your account${ip ? ` (from ${ip})` : ''}. If this wasn't you, change your password and turn on two-step sign-in.`,
+      link: '/profile?tab=security',
+      email: true,
+      dedupeKey: `blocked:${hour}`,
+    });
+    const admins = (await User.find({ orgId, role: 'admin', status: 'active', $or: [{ royal: true }, { superAdmin: true }] }).select('_id').limit(20).lean()) as { _id: unknown }[];
+    for (const a of admins) {
+      await notify({
+        orgId,
+        userId: String(a._id),
+        type: 'system.alert',
+        title: 'Sign-in blocked after repeated failures',
+        body: `${email}${ip ? ` from ${ip}` : ''}. See Security for details.`,
+        link: '/admin/security',
+        dedupeKey: `blocked-admin:${userId}:${hour}`,
+      });
+    }
+  } catch (e) {
+    console.warn('[auth] blocked-sign-in alert failed', e);
+  }
+}

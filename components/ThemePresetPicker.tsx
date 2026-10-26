@@ -4,6 +4,8 @@
 // Anime Deluxe themes show their illustrated scene). Used by Admin → Settings
 // (organisation theme) and Profile (personal theme).
 // Hover/focus calls onPreview (live preview), click calls onSelect.
+// UPDATED: Premium themes show a crown; locked ones a padlock (the parent
+// decides what clicking a locked theme does — e.g. the Upgrade dialog).
 // =============================================================================
 
 'use client';
@@ -20,6 +22,10 @@ type Props = {
   noneLabel?: string;
   /** Optional preview hook (e.g. live preview on hover). */
   onPreview?: (preset: ThemePreset | null) => void;
+  /** Premium tier of a theme (omit = everything free). */
+  isPremium?: (preset: ThemePreset) => boolean;
+  /** True when this user can't use the theme yet. */
+  isLocked?: (preset: ThemePreset) => boolean;
 };
 
 const SPECIAL = new Set(['Deluxe', 'Anime Deluxe']);
@@ -29,11 +35,15 @@ const Card = memo(function Card({
   active,
   onSelect,
   onPreview,
+  premium,
+  locked,
 }: {
   p: ThemePreset;
   active: boolean;
   onSelect: (p: ThemePreset) => void;
   onPreview?: (p: ThemePreset | null) => void;
+  premium: boolean;
+  locked: boolean;
 }) {
   const scene = useMemo(() => (p.scene ? sceneBackground(p.scene, p.light, false) : null), [p]);
   return (
@@ -43,7 +53,7 @@ const Card = memo(function Card({
       onMouseEnter={() => onPreview?.(p)}
       onFocus={() => onPreview?.(p)}
       aria-pressed={active}
-      title={`${p.name} — ${p.description}`}
+      title={`${p.name} — ${p.description}${premium ? ' (Premium)' : ''}`}
       style={{ contentVisibility: 'auto', containIntrinsicSize: '150px' } as React.CSSProperties}
       className={`group relative text-left rounded-[var(--radius-md)] border p-2 bg-surface transition-colors ${
         active ? 'border-primary ring-2 ring-primary/40' : 'border-border hover:border-primary/60'
@@ -79,6 +89,16 @@ const Card = memo(function Card({
         {p.scene ? '✨ ' : ''}
         {p.category ?? p.description}
       </p>
+      {premium && (
+        <span
+          className={`absolute top-1 left-1 inline-flex items-center gap-0.5 h-5 px-1.5 rounded-full text-[10px] font-semibold shadow ${
+            locked ? 'bg-text/80 text-bg' : 'bg-warning text-black'
+          }`}
+        >
+          <NavIcon name={locked ? 'lock' : 'crown'} size={10} />
+          {locked ? 'Premium' : 'Pro'}
+        </span>
+      )}
       {active && (
         <span className="absolute top-1 right-1 grid place-items-center w-5 h-5 rounded-full bg-primary text-primary-fg shadow" aria-hidden>
           <NavIcon name="attendance" size={12} />
@@ -88,7 +108,7 @@ const Card = memo(function Card({
   );
 });
 
-export default function ThemePresetPicker({ value, onSelect, noneLabel, onPreview }: Props) {
+export default function ThemePresetPicker({ value, onSelect, noneLabel, onPreview, isPremium, isLocked }: Props) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('All');
 
@@ -180,7 +200,15 @@ export default function ThemePresetPicker({ value, onSelect, noneLabel, onPrevie
           </button>
         )}
         {list.map((p) => (
-          <Card key={p.id} p={p} active={p.id === value} onSelect={onSelect} onPreview={onPreview} />
+          <Card
+            key={p.id}
+            p={p}
+            active={p.id === value}
+            onSelect={onSelect}
+            onPreview={onPreview}
+            premium={isPremium?.(p) ?? false}
+            locked={isLocked?.(p) ?? false}
+          />
         ))}
         {list.length === 0 && <p className="col-span-full text-sm text-muted py-6 text-center">No themes match “{q}”.</p>}
       </div>

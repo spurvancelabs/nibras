@@ -26,6 +26,7 @@ import { AppearanceSection } from './sections/Appearance';
 import { FeaturesSection, AnnouncementSection } from './sections/Learning';
 import { MembersSection, CertificatesSection } from './sections/People';
 import { SecuritySection, SignInSection, MaintenanceSection } from './sections/Access';
+import { PremiumSection, ThemeAccessSection, AttendanceRulesSection, AiSection, RetentionSection, RolesSection } from './sections/Policy';
 import type { SetField, TwoFactorStatRow } from './sections/types';
 
 type SectionId =
@@ -39,7 +40,13 @@ type SectionId =
   | 'certificates'
   | 'security'
   | 'signin'
-  | 'maintenance';
+  | 'maintenance'
+  | 'premium'
+  | 'themeAccess'
+  | 'attendanceRules'
+  | 'ai'
+  | 'retention'
+  | 'roles';
 
 type SectionDef = {
   id: SectionId;
@@ -49,7 +56,8 @@ type SectionDef = {
   desc: string;
   keywords: string;
   keys: (keyof ThemeSettings)[];
-  royal?: boolean;
+  /** Who may change it (others can look). */
+  level?: 'royal' | 'super' | 'entitle';
 };
 
 const SECTIONS: SectionDef[] = [
@@ -65,13 +73,19 @@ const SECTIONS: SectionDef[] = [
     keywords: 'theme colour color palette style design glass neumorphism brutal dark light mode font radius corners scene anime deluxe artwork personal',
     keys: ['themePresetId', 'light', 'dark', 'font', 'radiusMd', 'radiusLg', 'themeMode', 'uiStyle', 'allowUserThemes', 'allowUserStyles', 'showScene', 'heroArt'],
   },
+  { id: 'premium', label: 'Premium', icon: 'crown', group: 'Look & feel', desc: 'Membership on/off and wording', keywords: 'premium membership paid upgrade subscription', keys: ['premiumEnabled', 'premiumName', 'premiumHowTo', 'premiumPerks'], level: 'super' },
+  { id: 'themeAccess', label: 'Theme access', icon: 'palette', group: 'Look & feel', desc: 'Which themes are Premium', keywords: 'premium themes tiers free locked deluxe anime entitlement', keys: ['themeTiers', 'themeOverrides', 'styleTiers', 'styleOverrides'], level: 'entitle' },
   { id: 'features', label: 'Features', icon: 'dash', group: 'Learning', desc: 'Switch sections on or off', keywords: 'quizzes certificates syllabus gradebook queries modules', keys: ['featureQuizzes', 'featureCertificates', 'featureSyllabus', 'featureGradebook', 'featureQueries'] },
   { id: 'announcement', label: 'Announcement', icon: 'bell', group: 'Learning', desc: 'Banner at the top of every page', keywords: 'banner message notice alert', keys: ['announcementEnabled', 'announcementText', 'announcementTone', 'announcementLink', 'announcementAudience'] },
   { id: 'certificates', label: 'Certificates', icon: 'award', group: 'Learning', desc: 'Issuer, signatory and numbering', keywords: 'certificate signature signatory prefix footer issuer', keys: ['certIssuerName', 'certSignatoryName', 'certSignatoryTitle', 'certSignatureImage', 'certPrefix', 'certFooterText'] },
+  { id: 'attendanceRules', label: 'Attendance rules', icon: 'attendance', group: 'Learning', desc: 'Low-attendance alerts', keywords: 'attendance threshold absent absence streak alert', keys: ['attendanceThreshold', 'absenceStreakAlert', 'attendanceAlerts'] },
+  { id: 'ai', label: 'AI grading', icon: 'grading', group: 'Learning', desc: 'Suggested marks for mentors', keywords: 'ai artificial intelligence grading rubric feedback limit cost', keys: ['aiGradingEnabled', 'aiMonthlyLimit', 'aiMaxChars'], level: 'super' },
   { id: 'members', label: 'Members & IDs', icon: 'users', group: 'Learning', desc: 'Member ID rules', keywords: 'member id roll number format required', keys: ['memberIdRequired', 'memberIdFormat'] },
-  { id: 'security', label: 'Security', icon: 'shield', group: 'Access & safety', desc: 'Two-step sign-in, sessions, passwords', keywords: '2fa two-step authenticator mfa session length password alerts', keys: ['twoFactorPolicy', 'sessionMaxHours', 'passwordMinLength', 'newSignInAlerts'], royal: true },
+  { id: 'security', label: 'Security', icon: 'shield', group: 'Access & safety', desc: 'Two-step sign-in, sessions, passwords', keywords: '2fa two-step authenticator mfa session length password alerts', keys: ['twoFactorPolicy', 'sessionMaxHours', 'passwordMinLength', 'newSignInAlerts'], level: 'royal' },
   { id: 'signin', label: 'Sign-in page', icon: 'user', group: 'Access & safety', desc: 'Note shown under the sign-in form', keywords: 'login notice note', keys: ['loginNotice'] },
-  { id: 'maintenance', label: 'Maintenance', icon: 'settings', group: 'Access & safety', desc: 'Temporarily close the LMS', keywords: 'maintenance downtime close', keys: ['maintenanceMode', 'maintenanceMessage'], royal: true },
+  { id: 'maintenance', label: 'Maintenance', icon: 'settings', group: 'Access & safety', desc: 'Temporarily close the LMS', keywords: 'maintenance downtime close', keys: ['maintenanceMode', 'maintenanceMessage'], level: 'royal' },
+  { id: 'retention', label: 'Data retention', icon: 'shield', group: 'Access & safety', desc: 'How long logs are kept', keywords: 'retention delete cleanup audit notifications privacy', keys: ['auditRetentionDays', 'notificationRetentionDays'], level: 'super' },
+  { id: 'roles', label: 'Roles & delegation', icon: 'users', group: 'Access & safety', desc: 'Who may do what', keywords: 'roles permissions super royal admin mentor delegate rbac', keys: ['permissionOverrides'], level: 'super' },
 ];
 
 const KEY_LABEL: Partial<Record<keyof ThemeSettings, string>> = {
@@ -88,12 +102,18 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b)
 export default function SettingsShell({
   initial,
   canRoyal,
+  canSuper = false,
+  canEntitle = false,
+  aiConfigured = false,
   initialSection,
   twoFactorStats,
   viewerHas2fa = false,
 }: {
   initial: ThemeSettings;
   canRoyal: boolean;
+  canSuper?: boolean;
+  canEntitle?: boolean;
+  aiConfigured?: boolean;
   initialSection?: string;
   twoFactorStats: TwoFactorStatRow[];
   viewerHas2fa?: boolean;
@@ -206,7 +226,8 @@ export default function SettingsShell({
 
   const sectionDirty = (s: SectionDef) => s.keys.some((k) => changed.includes(k));
   const current = SECTIONS.find((s) => s.id === section)!;
-  const props = { form, set, setForm, canRoyal };
+  const props = { form, set, setForm, canRoyal, canSuper, canEntitle };
+  const locked = (s: SectionDef) => (s.level === 'royal' && !canRoyal) || (s.level === 'super' && !canSuper) || (s.level === 'entitle' && !canEntitle);
   const preset = findPreset(form.themePresetId);
   const style = findUiStyle(form.uiStyle);
   const featuresOn = [form.featureQuizzes, form.featureCertificates, form.featureSyllabus, form.featureGradebook, form.featureQueries].filter(Boolean).length;
@@ -295,7 +316,11 @@ export default function SettingsShell({
                         <span className="block text-sm font-medium truncate">{s.label}</span>
                         <span className={`block text-[11px] truncate ${active ? 'opacity-80' : 'text-muted'}`}>{s.desc}</span>
                       </span>
-                      {s.royal && !canRoyal && <span title="Royal admins only" aria-label="Royal admins only">👑</span>}
+                      {locked(s) && (
+                        <span title={s.level === 'super' ? 'Super admins only' : 'Royal admins only'} aria-label="View only">
+                          {s.level === 'super' ? '🛡️' : '👑'}
+                        </span>
+                      )}
                       {sectionDirty(s) && <span className="w-2 h-2 rounded-full bg-warning shrink-0" aria-label="unsaved changes" />}
                     </button>
                   );
@@ -335,6 +360,12 @@ export default function SettingsShell({
           {section === 'security' && <SecuritySection {...props} stats={twoFactorStats} viewerHas2fa={viewerHas2fa} />}
           {section === 'signin' && <SignInSection {...props} />}
           {section === 'maintenance' && <MaintenanceSection {...props} />}
+          {section === 'premium' && <PremiumSection {...props} />}
+          {section === 'themeAccess' && <ThemeAccessSection {...props} />}
+          {section === 'attendanceRules' && <AttendanceRulesSection {...props} />}
+          {section === 'ai' && <AiSection {...props} aiConfigured={aiConfigured} />}
+          {section === 'retention' && <RetentionSection {...props} />}
+          {section === 'roles' && <RolesSection {...props} />}
         </form>
       </div>
 

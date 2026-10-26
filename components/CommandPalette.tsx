@@ -14,7 +14,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { useRouter } from 'next/navigation';
 import { signOut } from 'next-auth/react';
 import NavIcon, { type IconName } from './NavIcon';
-import { visibleNav, type Features } from '@/lib/nav';
+import { visibleNav, GROUP_LABEL, type Features } from '@/lib/nav';
+import type { PermissionOverrides } from '@/lib/rbac';
 import type { Role } from '@/lib/constants';
 import { applyThemeMode } from './ThemeToggle';
 import { searchAction } from '@/app/(app)/search-actions';
@@ -44,7 +45,19 @@ export function openCommandPalette() {
   window.dispatchEvent(new Event(OPEN_PALETTE_EVENT));
 }
 
-export default function CommandPalette({ role, royal, features }: { role: Role; royal: boolean; features?: Partial<Features> }) {
+export default function CommandPalette({
+  role,
+  royal,
+  superAdmin = false,
+  features,
+  overrides,
+}: {
+  role: Role;
+  royal: boolean;
+  superAdmin?: boolean;
+  features?: Partial<Features>;
+  overrides?: PermissionOverrides | null;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState('');
@@ -121,10 +134,10 @@ export default function CommandPalette({ role, royal, features }: { role: Role; 
   }, [q, open]);
 
   const staticItems = useMemo<Item[]>(() => {
-    const pages: Item[] = visibleNav(role, royal, features).map((n) => ({
+    const pages: Item[] = visibleNav({ role, royal, superAdmin }, features, overrides).map((n) => ({
       id: `page:${n.href}`,
       label: n.label,
-      hint: n.group === 'manage' ? 'Admin' : n.group === 'account' ? 'Account' : 'Page',
+      hint: GROUP_LABEL[n.group],
       icon: n.icon as IconName,
       group: 'Go to',
       keywords: n.keywords,
@@ -175,7 +188,7 @@ export default function CommandPalette({ role, royal, features }: { role: Role; 
       { id: 'logout', label: 'Sign out', icon: 'logout', group: 'Account', keywords: 'logout exit', run: () => signOut({ callbackUrl: '/login' }) },
     ];
     return [...actions, ...pages];
-  }, [role, royal, features, go, close]);
+  }, [role, royal, superAdmin, features, overrides, go, close]);
 
   const items = useMemo<Item[]>(() => {
     const term = q.trim().toLowerCase();

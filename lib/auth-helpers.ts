@@ -8,6 +8,7 @@
 import { redirect } from 'next/navigation';
 import { auth } from './auth';
 import type { Role } from '@/lib/constants';
+import { can, type Permission, type PermissionOverrides } from './rbac';
 
 export type SessionUser = {
   id: string;
@@ -25,6 +26,10 @@ export type SessionUser = {
   twoFactorEnabled?: boolean;
   /** Profile photo URL. */
   avatar?: string;
+  /** Effective Super Admin status. */
+  superAdmin?: boolean;
+  /** Premium membership end (ISO) or null. */
+  premiumUntil?: string | null;
 };
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
@@ -116,4 +121,33 @@ export async function requireRoyal(): Promise<SessionUser & { royal: true }> {
     redirect('/admin/users?denied=royal');
   }
   return { ...user, royal: true };
+}
+
+// ---------------------------------------------------------------------------
+// Permissions (lib/rbac.ts) — the server is always the authority.
+// ---------------------------------------------------------------------------
+
+
+async function permissionOverrides(): Promise<PermissionOverrides | null> {
+  try {
+    const { getSettings } = await import('./settings');
+    return ((await getSettings()).permissionOverrides as PermissionOverrides) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** For server actions: does this user have the permission? (live role data) */
+export async function hasPermission(user: SessionUser, perm: Permission): Promise<boolean> {
+  return can(user, perm, await permissionOverrides());
+}
+
+/** For pages: signed-in user with the permission, otherwise redirect. */
+export async function requirePermission(perm: Permission): Promise<SessionUser> {
+  const user = await requireAuth();
+  if (!(await hasPermission(user, perm))) {
+    await logDenied(user, perm);
+    redirect('/dashboard?denied=1');
+  }
+  return user;
 }

@@ -12,8 +12,9 @@ import { signOut } from 'next-auth/react';
 import Avatar from './Avatar';
 import NavIcon, { type IconName } from './NavIcon';
 import ThemeToggle from './ThemeToggle';
+import { LEVEL_LABEL, levelOf } from '@/lib/rbac';
 
-type Props = { name: string; email?: string; role: string; royal?: boolean; avatar?: string };
+type Props = { name: string; email?: string; role: string; royal?: boolean; superAdmin?: boolean; premium?: boolean; premiumEnabled?: boolean; avatar?: string };
 
 const LINKS: { href: string; label: string; icon: IconName }[] = [
   { href: '/profile', label: 'Profile', icon: 'user' },
@@ -22,7 +23,9 @@ const LINKS: { href: string; label: string; icon: IconName }[] = [
   { href: '/notifications', label: 'Notifications', icon: 'bell' },
 ];
 
-export default function UserMenu({ name, email = '', role, royal = false, avatar = '' }: Props) {
+export default function UserMenu({ name, email = '', role, royal = false, superAdmin = false, premium = false, premiumEnabled = false, avatar = '' }: Props) {
+  const level = LEVEL_LABEL[levelOf({ role, royal, superAdmin })];
+  const links = premiumEnabled ? [...LINKS, { href: '/premium', label: premium ? 'My Premium' : 'Upgrade to Premium', icon: 'crown' as IconName }] : LINKS;
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -53,7 +56,7 @@ export default function UserMenu({ name, email = '', role, royal = false, avatar
         <Avatar name={name || 'User'} src={avatar} size={36} />
         <span className="hidden lg:block leading-tight text-left">
           <span className="block text-sm font-medium truncate max-w-[9rem]">{name}</span>
-          <span className="block text-[11px] text-muted capitalize">{role}</span>
+          <span className="block text-[11px] text-muted">{level}</span>
         </span>
         <NavIcon name="chevron" size={14} className={`hidden lg:block text-muted transition-transform ${open ? '-rotate-90' : 'rotate-90'}`} />
       </button>
@@ -65,14 +68,18 @@ export default function UserMenu({ name, email = '', role, royal = false, avatar
             <div className="min-w-0">
               <p className="text-sm font-semibold truncate">{name}</p>
               {email && <p className="text-xs text-muted truncate">{email}</p>}
-              <p className="mt-1 inline-flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted">
-                {role}
-                {royal && <span title="Royal admin">· 👑 royal</span>}
+              <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                <span>{level}</span>
+                {premium && (
+                  <span className="inline-flex items-center gap-0.5 px-1.5 py-px rounded-full bg-warning/15 text-warning normal-case tracking-normal">
+                    <NavIcon name="crown" size={10} /> Premium
+                  </span>
+                )}
               </p>
             </div>
           </div>
           <div className="p-1.5">
-            {LINKS.map((l) => (
+            {links.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}

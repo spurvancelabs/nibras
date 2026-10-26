@@ -1,86 +1,148 @@
-# Update 2 — changed files
+# Update 3 — changed files
 
-Copy every file below into your project at the same path (complete files — just overwrite). Then delete the files at the bottom and run `pnpm install`.
+Copy every file below into your project at the same path (complete files — just overwrite). Then delete the file at the bottom.
 
-**29 new · 34 updated · 7 to delete**
+**75 new · 56 updated · 1 to delete**
 
 ## New files
 
-- `app/(app)/admin/settings/SettingsShell.tsx` — Redesigned settings page
-- `app/(app)/admin/settings/sections/Access.tsx`
-- `app/(app)/admin/settings/sections/Appearance.tsx` — Appearance studio
-- `app/(app)/admin/settings/sections/Learning.tsx`
-- `app/(app)/admin/settings/sections/Organisation.tsx`
-- `app/(app)/admin/settings/sections/People.tsx`
-- `app/(app)/admin/settings/sections/types.ts`
-- `app/(app)/admin/users/[id]/ResetTwoFactor.tsx`
-- `app/(app)/profile/AccountForm.tsx`
-- `app/(app)/profile/PasswordForm.tsx`
-- `app/(app)/profile/PersonalAppearance.tsx`
-- `app/(app)/profile/TwoFactorPanel.tsx` — Two-step sign-in setup
-- `app/(app)/search-actions.ts`
-- `components/CommandPalette.tsx` — Ctrl/⌘ K palette
-- `components/MobileNav.tsx` — Phone bottom tab bar
-- `components/NavIcon.tsx`
-- `components/UiStylePicker.tsx` — Design style gallery
-- `components/UserMenu.tsx` — Account menu
-- `components/appearance/preview.tsx`
-- `components/settings-ui.tsx`
-- `lib/nav.ts` — Shared navigation map
-- `lib/search.ts` — Command-palette search
-- `lib/theme-scenes.ts` — Illustrated scenes for Deluxe & Anime Deluxe themes
-- `lib/totp.ts` — Authenticator codes (two-step sign-in)
-- `lib/two-factor.ts` — Two-step sign-in logic
-- `lib/ui-fonts.ts` — Fonts used by styles/themes
-- `lib/ui-patterns.ts` — Background patterns & backdrops for the styles
-- `lib/ui-styles.ts` — 156 design styles (Glassmorphism … Adaptive UI)
-- `lib/user-agent.ts` — Sign-in history device names
+- `app/(app)/admin/automation/AutomationAdmin.tsx`
+- `app/(app)/admin/automation/actions.ts`
+- `app/(app)/admin/automation/page.tsx`
+- `app/(app)/admin/premium/PremiumAdmin.tsx`
+- `app/(app)/admin/premium/actions.ts`
+- `app/(app)/admin/premium/page.tsx`
+- `app/(app)/admin/reports/ProgramTable.tsx`
+- `app/(app)/admin/reports/export/route.ts`
+- `app/(app)/admin/reports/page.tsx`
+- `app/(app)/admin/settings/sections/Policy.tsx`
+- `app/(app)/admin/users/[id]/AccountExtras.tsx`
+- `app/(app)/attendance/LearnerTable.tsx`
+- `app/(app)/attendance/StaffAttendance.tsx`
+- `app/(app)/attendance/export/route.ts`
+- `app/(app)/attendance/learners/[id]/page.tsx`
+- `app/(app)/dashboard/FocusStrip.tsx`
+- `app/(app)/grading/QueueTable.tsx`
+- `app/(app)/grading/actions.ts`
+- `app/(app)/grading/page.tsx`
+- `app/(app)/grading/review/[id]/ReviewForm.tsx`
+- `app/(app)/grading/review/[id]/page.tsx`
+- `app/(app)/grading/setup/[id]/SetupForm.tsx`
+- `app/(app)/grading/setup/[id]/page.tsx`
+- `app/(app)/premium/RedeemForm.tsx`
+- `app/(app)/premium/actions.ts`
+- `app/(app)/premium/page.tsx`
+- `app/(app)/profile/SignOutEverywhere.tsx`
+- `app/(app)/progress/page.tsx`
+- `app/(app)/reauth-actions.ts`
+- `app/api/cron/daily/route.ts` — Daily job endpoint (needs CRON_SECRET)
+- `app/forgot-password/ForgotForm.tsx`
+- `app/forgot-password/actions.ts`
+- `app/forgot-password/page.tsx`
+- `app/reset-password/AuthCard.tsx`
+- `app/reset-password/ResetForm.tsx`
+- `app/reset-password/page.tsx`
+- `components/Character.tsx` — 13 original anime-style characters (theme-coloured)
+- `components/DataTable.tsx` — Search / sort / select / bulk actions / paging
+- `components/charts.tsx` — Theme-aware SVG charts
+- `components/feedback.tsx` — Toasts, confirm dialogs, modal, identity prompt
+- `lib/ai-grading-core.ts` — Prompt building, injection & PII defences (tested)
+- `lib/ai-provider.ts` — Any OpenAI-compatible AI provider
+- `lib/appearance.ts`
+- `lib/attendance-reports.ts` — Rates, streaks, flags, missing registers, CSV
+- `lib/automation-match.ts` — Inactivity rules (pure, tested)
+- `lib/automation.ts` — Inactive-account automation engine
+- `lib/daily-jobs.ts` — Daily maintenance jobs
+- `lib/entitlements.ts` — Free vs Premium themes & styles
+- `lib/grading.ts` — Grading queue + AI suggestions + approval
+- `lib/learner-progress.ts` — Learner progress, streaks, achievements
+- `lib/password-reset.ts` — Forgot-password by email
+- `lib/premium.ts` — Memberships, codes, history, expiry notices
+- `lib/progress-core.ts`
+- `lib/rbac.ts` — One permission table (Learner → Mentor → Program Admin → Royal → Super)
+- `lib/reauth-shared.ts`
+- `lib/reports.ts` — Admin reports & system health
+- `lib/sudo.ts` — Confirm-your-identity for high-impact actions
+- `lib/super.ts` — Super Admin status + bootstrap
+- `lib/upload-policy.ts` — Allowed files & links
+- `models/AccountFlag.ts`
+- `models/AiUsage.ts`
+- `models/AutomationRule.ts`
+- `models/AutomationRun.ts`
+- `models/GradeSuggestion.ts`
+- `models/GradingConfig.ts`
+- `models/MembershipEvent.ts`
+- `models/PasswordReset.ts`
+- `models/PremiumCode.ts`
+- `scripts/backup.ts`
+- `scripts/restore.ts`
+- `tests/ai-grading.test.ts`
+- `tests/automation.test.ts`
+- `tests/entitlements.test.ts`
+- `tests/progress-and-uploads.test.ts`
+- `tests/rbac.test.ts`
 
-## Updated files (replace completely)
+## Updated files
 
-- `UPGRADE.md`
+- `.github/workflows/ci.yml`
+- `.gitignore`
+- `app/(app)/admin/security/SecurityControls.tsx`
+- `app/(app)/admin/security/actions.ts`
 - `app/(app)/admin/security/page.tsx`
+- `app/(app)/admin/settings/SettingsShell.tsx`
 - `app/(app)/admin/settings/actions.ts`
 - `app/(app)/admin/settings/page.tsx`
+- `app/(app)/admin/settings/sections/types.ts`
+- `app/(app)/admin/users/[id]/ResetTwoFactor.tsx`
+- `app/(app)/admin/users/[id]/RoyalToggle.tsx`
 - `app/(app)/admin/users/[id]/page.tsx`
 - `app/(app)/admin/users/actions.ts`
+- `app/(app)/assignments/actions.ts`
+- `app/(app)/attendance/page.tsx` — Learner page fixed + staff hub
 - `app/(app)/dashboard/page.tsx`
 - `app/(app)/layout.tsx`
+- `app/(app)/profile/PersonalAppearance.tsx`
 - `app/(app)/profile/actions.ts`
 - `app/(app)/profile/page.tsx`
-- `app/globals.css` — Design-style layer
-- `app/layout.tsx`
+- `app/(app)/queries/actions.ts`
+- `app/(app)/sessions/[id]/AttendancePanel.tsx` — Bulk/keyboard marking, conflict detection
+- `app/(app)/sessions/[id]/attendance/actions.ts`
+- `app/(app)/sessions/[id]/attendance/page.tsx` — Now forwards to the session page
+- `app/(app)/sessions/[id]/materials/actions.ts`
+- `app/globals.css`
 - `app/login/LoginForm.tsx`
 - `app/login/page.tsx`
 - `components/AppShell.tsx`
-- `components/NotificationBell.tsx`
-- `components/Sidebar.tsx`
-- `components/ThemePresetPicker.tsx` — Colour theme gallery
-- `components/ThemeToggle.tsx`
+- `components/CloudinaryUpload.tsx`
+- `components/CommandPalette.tsx`
+- `components/FileUpload.tsx`
+- `components/MobileNav.tsx`
+- `components/NavIcon.tsx`
+- `components/Sidebar.tsx` — Collapsible menu groups
+- `components/ThemePresetPicker.tsx`
+- `components/UiStylePicker.tsx`
+- `components/UserMenu.tsx`
+- `components/providers.tsx`
+- `lib/attendance.ts`
 - `lib/audit.ts`
-- `lib/auth-helpers.ts` — 2FA policy enforcement
+- `lib/auth-helpers.ts`
 - `lib/auth-state.ts`
-- `lib/auth.ts` — Two-step sign-in, session length, new-network alerts
+- `lib/auth.ts` — Paused-account message, blocked sign-in alerts
 - `lib/constants.ts`
-- `lib/settings.ts` — Cache-safe settings
-- `lib/theme-config.ts` — New settings fields, fonts, presets
-- `lib/theme-css.ts` — Builds theme + style CSS
-- `lib/theme-presets.ts` — 550 colour themes (35 categories)
+- `lib/nav.ts` — Grouped, role-aware menu
+- `lib/royal.ts`
+- `lib/settings.ts`
+- `lib/theme-config.ts`
+- `lib/ui-styles.ts`
 - `lib/users.ts`
 - `models/Setting.ts`
 - `models/User.ts`
+- `next.config.ts` — Stricter Content-Security-Policy
 - `package.json`
-- `pnpm-lock.yaml`
-- `scripts/seed.ts` — Hardcoded password removed
+- `vercel.json` — Adds the daily cron
 
-## Delete these files (and the three now-empty folders `app/test-theme`, `app/theme-demo`, `app/theme-settings`)
+## Delete this file
 
-- `app/(app)/admin/settings/SettingsForm.tsx`
-- `app/(app)/profile/PersonalTheme.tsx`
-- `app/(app)/profile/ProfileForm.tsx`
-- `app/test-theme/page.tsx`
-- `app/theme-demo/page.tsx`
-- `app/theme-settings/page.tsx`
-- `components/ThemeCustomizer.tsx`
+- `app/api/theme-preview/route.ts`
 
-See UPGRADE.md (top section) for what changed and the test checklist.
+Also included: `UPGRADE.md`, `REPORT.md` and this file.

@@ -114,6 +114,7 @@ export const DEFAULT_UI_VARS: Vars = {
   '--fx-tilt': '0',
   '--fx-asym': '0',
   '--fx-bevel': '0',
+  '--fx-deluxe': '0',
 };
 
 type Part = Vars;
@@ -358,7 +359,7 @@ const DEFS: (Def & { id?: string })[] = [
   { name: 'Monospace UI', cat: 'Essentials', desc: 'Everything in a crisp monospace font.', parts: [flat, { '--ui-border-w': '1px', '--ui-border-c': mix(T, 18) }, radius(0.3), heading('jetbrains'), body('jetbrains')], fonts: ['jetbrains'] },
 
   // ===== Deluxe (special) =====
-  { name: 'Deluxe', cat: 'Deluxe', desc: 'Signature premium look: frosted surfaces, golden hairlines, soft glow.', parts: [glass(18, 62), { '--ui-border-c': mix(P, 35), '--ui-card-shadow': `inset 0 1px 0 ${W(40)}, 0 0 0 1px ${mix(P, 12)}, 0 18px 40px ${mix(T, 12)}` }, gradientBtn(120), upperButtons('.12em'), heading('cormorant', { tracking: '.02em' }), backdrop('luxe'), pattern('deco', 0.07, P), motion(-2), radius(0.9)], dark: { '--ui-card-shadow': `inset 0 1px 0 ${W(8)}, 0 0 0 1px ${mix(P, 20)}, 0 18px 40px ${K(50)}` }, fonts: ['cormorant'] },
+  { name: 'Deluxe', cat: 'Deluxe', desc: 'Flagship premium look: gilded card edges, frosted surfaces, gold focus rings and scrollbars.', parts: [glass(18, 62), { '--ui-border-c': mix(P, 35), '--ui-card-shadow': `inset 0 1px 0 ${W(40)}, 0 0 0 1px ${mix(P, 12)}, 0 18px 40px ${mix(T, 12)}` }, gradientBtn(120), upperButtons('.12em'), heading('cormorant', { tracking: '.02em' }), backdrop('luxe'), pattern('deco', 0.07, P), motion(-2), radius(0.9), { '--fx-deluxe': '1', '--ui-scroll-thumb': 'color-mix(in srgb, #c9a24a 70%, var(--color-primary))', '--ui-scroll-thumb-hover': '#d4af37' }], dark: { '--ui-card-shadow': `inset 0 1px 0 ${W(8)}, 0 0 0 1px ${mix(P, 20)}, 0 18px 40px ${K(50)}` }, fonts: ['cormorant'] },
   { name: 'Anime Deluxe', cat: 'Deluxe', desc: 'Dreamy anime-inspired look: glowing glass, rounded type, sparkles.', parts: [glass(16, 55), { '--ui-border-c': mix(P, 30), '--ui-card-shadow': `inset 0 1px 0 ${W(50)}, 0 0 0 1px ${mix(P, 14)}, 0 14px 36px ${mix(P, 18)}` }, gradientBtn(110), heading('mplusRounded'), body('mplusRounded'), backdrop('aurora', true), pattern('sparkles', 0.22, P), motion(-3), radius(1.4), { '--ui-heading-glow': `0 2px 16px ${mix(P, 28)}` }], dark: { '--ui-card-shadow': `inset 0 1px 0 ${W(9)}, 0 0 0 1px ${mix(P, 24)}, 0 14px 36px ${mix(P, 22)}` }, fonts: ['mplusRounded'] },
   { name: 'Anime Night Festival', cat: 'Deluxe', desc: 'Lantern-lit glass panels and starry sparkles. Best in dark mode.', parts: [glass(14, 50), { '--ui-border-c': mix(P, 40) }, gradientBtn(100), heading('zenMaru'), backdrop('auroraStrong', true), pattern('stars', 0.35, P), motion(-3), radius(1.3), { '--ui-heading-glow': `0 0 20px ${mix(P, 45)}` }], dark: glassDark, fonts: ['zenMaru'], mode: 'dark' },
   { name: 'Royal Palace', cat: 'Deluxe', desc: 'Ornate royal look: serif capitals, filigree pattern, gold rules.', parts: [{ '--ui-border-c': mix(P, 45), '--ui-border-style': 'double', '--ui-border-w': '3px', '--ui-card-shadow': `0 12px 30px ${mix(T, 10)}` }, gradientBtn(180), upperButtons('.14em'), heading('cinzel', { tracking: '.04em' }), backdrop('luxe'), pattern('ornament', 0.06, P), radius(0.4)], fonts: ['cinzel'] },

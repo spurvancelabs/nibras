@@ -7,6 +7,11 @@
 //   - maintenance mode (students and mentors see a notice; admins keep
 //     working with a warning bar)
 //   - two-step sign-in reminder when Settings require it for this user
+//   - NEW: premium themes/styles are only applied while the user has
+//     Premium. If it ended, the organisation theme is shown instead (their
+//     choice is kept, never deleted) with a friendly notice.
+//   - NEW: role level (Super/Royal), premium badge and permission
+//     delegation for the grouped menu.
 // =============================================================================
 
 import { requireAuth, mustSetUp2fa } from '@/lib/auth-helpers';
@@ -14,7 +19,10 @@ import { getSettings } from '@/lib/settings';
 import { findPreset } from '@/lib/theme-config';
 import { presetCss, fontsHref } from '@/lib/theme-css';
 import { findUiStyle, uiStyleCss } from '@/lib/ui-styles';
+import { themeTier, styleTier, canUseTier, hasPremiumAccess, isPremiumActive } from '@/lib/entitlements';
+import { policyFrom } from '@/lib/premium';
 import AppShell from '@/components/AppShell';
+import type { PermissionOverrides } from '@/lib/rbac';
 import LogoutButton from '@/components/LogoutButton';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
@@ -42,9 +50,19 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // Personal appearance (never let it break the page).
   let personalCss = '';
   let personalFonts: string | null = null;
+  let paused = false;
+  const policy = policyFrom(s);
   try {
-    const preset = s.allowUserThemes ? findPreset(user.themePreset) : undefined;
-    const style = s.allowUserStyles ? findUiStyle(user.uiStyle) : undefined;
+    let preset = s.allowUserThemes ? findPreset(user.themePreset) : undefined;
+    let style = s.allowUserStyles ? findUiStyle(user.uiStyle) : undefined;
+    if (preset && !canUseTier(themeTier(preset, policy), user, policy)) {
+      preset = undefined;
+      paused = true;
+    }
+    if (style && !canUseTier(styleTier(style, policy), user, policy)) {
+      style = undefined;
+      paused = true;
+    }
     if (preset) personalCss += presetCss(preset, { showScene: s.showScene });
     if (style) personalCss += uiStyleCss(style);
     if (preset || style) personalFonts = fontsHref(preset?.font, style);
@@ -69,7 +87,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       {personalFonts && <link rel="stylesheet" href={personalFonts} />}
       {personalCss && <style id="personal-appearance" dangerouslySetInnerHTML={{ __html: personalCss }} />}
       <AppShell
-        user={{ name: user.name, email: user.email, role: user.role, royal: user.role === 'admin' && user.royal === true, avatar: user.avatar }}
+        user={{
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          royal: user.role === 'admin' && user.royal === true,
+          superAdmin: user.role === 'admin' && user.superAdmin === true,
+          // badge only for real members (admins have access but no badge)
+          premium: policy.premiumEnabled && isPremiumActive(user.premiumUntil),
+          avatar: user.avatar,
+        }}
+        overrides={s.permissionOverrides as PermissionOverrides}
+        notice={
+          paused && !hasPremiumAccess(user, policy)
+            ? {
+                text: user.premiumUntil
+                  ? 'Your Premium has ended, so your premium theme is paused and the organisation theme is shown. Your choice is saved and comes back when you renew.'
+                  : 'Your chosen theme is now part of Premium, so the organisation theme is shown for now. Your choice is saved and comes back if you get Premium.',
+                href: '/premium',
+                cta: user.premiumUntil ? 'Renew Premium' : 'See Premium',
+              }
+            : null
+        }
         orgName={s.orgName || 'Nibras'}
         logo={s.logo || ''}
         features={{
@@ -77,6 +116,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           certificates: s.featureCertificates,
           queries: s.featureQueries,
           gradebook: s.featureGradebook,
+          premium: s.premiumEnabled === true,
         }}
         announcement={announcement}
         maintenance={s.maintenanceMode && user.role === 'admin'}

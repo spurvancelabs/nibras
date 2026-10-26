@@ -22,6 +22,8 @@ import { PASSWORD_MAX, validatePassword } from '@/lib/password';
 import { getSettings } from '@/lib/settings';
 import { findPreset } from '@/lib/theme-config';
 import { findUiStyle } from '@/lib/ui-styles';
+import { themeTier, styleTier, canUseTier } from '@/lib/entitlements';
+import { policyFrom } from '@/lib/premium';
 import { audit } from '@/lib/audit';
 import { invalidateAuthState } from '@/lib/auth-state';
 import { hit } from '@/lib/rate-limit';
@@ -33,7 +35,10 @@ import {
   policyRequires,
 } from '@/lib/two-factor';
 
-export type ProfileActionResult = { ok: true; passwordChanged?: boolean } | { ok: false; error: string };
+export type ProfileActionResult = { ok: true; passwordChanged?: boolean } | { ok: false; error: string; premiumRequired?: boolean };
+
+/** Error code the appearance pickers turn into the "Upgrade" dialog. */
+const PREMIUM_REQUIRED = 'This is a Premium theme. Upgrade to use it.';
 
 const me = () => requireAuth({ allowWithout2fa: true });
 
@@ -130,7 +135,12 @@ export async function saveThemeAction(raw: unknown): Promise<ProfileActionResult
   const s = await getSettings();
   if (!s.allowUserThemes) return { ok: false, error: 'Personal themes are turned off by your admin.' };
   const id = parsed.data.presetId;
-  if (id && !findPreset(id)) return { ok: false, error: 'Unknown theme' };
+  const preset = id ? findPreset(id) : undefined;
+  if (id && !preset) return { ok: false, error: 'Unknown theme' };
+  // Premium themes: checked on the server (the picker lock is only a hint).
+  if (preset && !canUseTier(themeTier(preset, policyFrom(s)), user, policyFrom(s))) {
+    return { ok: false, error: PREMIUM_REQUIRED, premiumRequired: true };
+  }
   const res = await setThemePreset(user.orgId, user.id, id);
   if (!res.ok) return res;
   revalidatePath('/', 'layout');
@@ -145,7 +155,11 @@ export async function saveStyleAction(raw: unknown): Promise<ProfileActionResult
   const s = await getSettings();
   if (!s.allowUserStyles) return { ok: false, error: 'Personal styles are turned off by your admin.' };
   const id = parsed.data.styleId;
-  if (id && !findUiStyle(id)) return { ok: false, error: 'Unknown style' };
+  const style = id ? findUiStyle(id) : undefined;
+  if (id && !style) return { ok: false, error: 'Unknown style' };
+  if (style && !canUseTier(styleTier(style, policyFrom(s)), user, policyFrom(s))) {
+    return { ok: false, error: 'This is a Premium design style. Upgrade to use it.', premiumRequired: true };
+  }
   const res = await setUiStyle(user.orgId, user.id, id);
   if (!res.ok) return res;
   revalidatePath('/', 'layout');
@@ -213,4 +227,25 @@ export async function regenerateRecoveryAction(raw: unknown): Promise<{ ok: true
     await audit({ orgId: user.orgId, action: 'auth.recovery_regenerated', actorId: user.id, actorEmail: user.email ?? '', actorName: user.name ?? '', targetIds: [user.id] });
   }
   return res;
+}
+
+// ---------------------------------------------------------------------------
+// Sign out of every device (including this one)
+// ---------------------------------------------------------------------------
+
+export async function signOutEverywhereAction(): Promise<ProfileActionResult> {
+  const user = await me();
+  await db();
+  await User.updateOne({ _id: user.id, orgId: user.orgId }, { $inc: { sessionVersion: 1 } });
+  await invalidateAuthState([user.id]);
+  await audit({
+    orgId: user.orgId,
+    action: 'auth.signout_everywhere',
+    actorId: user.id,
+    actorEmail: user.email ?? '',
+    actorName: user.name ?? '',
+    targetIds: [user.id],
+    summary: 'Signed out of all devices',
+  });
+  return { ok: true };
 }

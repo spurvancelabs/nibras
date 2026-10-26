@@ -21,11 +21,16 @@ import CommandPalette, { openCommandPalette } from './CommandPalette';
 import NavIcon from './NavIcon';
 import { pageTitle, type Features } from '@/lib/nav';
 import type { Role } from '@/lib/constants';
+import type { PermissionOverrides } from '@/lib/rbac';
 
 export type { Features };
 
 type Props = {
-  user: { name?: string | null; email?: string | null; role: Role; royal?: boolean; avatar?: string };
+  user: { name?: string | null; email?: string | null; role: Role; royal?: boolean; superAdmin?: boolean; premium?: boolean; avatar?: string };
+  /** Super-Admin permission delegation (menu visibility only). */
+  overrides?: PermissionOverrides | null;
+  /** Notice shown once when a personal premium theme was paused. */
+  notice?: { text: string; href: string; cta: string } | null;
   orgName: string;
   logo: string;
   features?: Partial<Features>;
@@ -93,7 +98,7 @@ function Announcement({ a }: { a: NonNullable<Props['announcement']> }) {
 
 const RAIL_KEY = 'lms-sidebar-rail';
 
-export default function AppShell({ user, orgName, logo, features, announcement, maintenance, needs2fa, children }: Props) {
+export default function AppShell({ user, orgName, logo, features, overrides, notice, announcement, maintenance, needs2fa, children }: Props) {
   const pathname = usePathname() ?? '';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -147,6 +152,9 @@ export default function AppShell({ user, orgName, logo, features, announcement, 
   }, []);
 
   const royal = user.role === 'admin' && user.royal === true;
+  const superAdmin = royal && user.superAdmin === true;
+  const premium = user.premium === true;
+  const titleHref = pathname.startsWith('/admin/') ? `/admin/${pathname.split('/')[2] ?? ''}` : `/${pathname.split('/')[1] ?? ''}`;
 
   return (
     <div className="min-h-dvh flex">
@@ -161,7 +169,10 @@ export default function AppShell({ user, orgName, logo, features, announcement, 
       <Sidebar
         role={user.role}
         royal={royal}
+        superAdmin={superAdmin}
+        premium={premium}
         features={features}
+        overrides={overrides}
         orgName={orgName}
         logo={logo}
         userName={user.name ?? ''}
@@ -187,10 +198,21 @@ export default function AppShell({ user, orgName, logo, features, announcement, 
 
           <div className="min-w-0 flex-1">
             <p className="hidden sm:block text-[11px] uppercase tracking-[0.14em] text-muted truncate">{orgName}</p>
-            <p className="text-base sm:text-lg font-semibold leading-tight truncate">
-              {title}
-              {crumb && <span className="font-normal text-muted"> / {crumb}</span>}
-            </p>
+            <nav aria-label="Breadcrumb" className="text-base sm:text-lg font-semibold leading-tight truncate">
+              {crumb ? (
+                <>
+                  <Link href={titleHref} className="hover:underline underline-offset-4 decoration-border">
+                    {title}
+                  </Link>
+                  <span className="font-normal text-muted" aria-current="page">
+                    {' '}
+                    / {crumb}
+                  </span>
+                </>
+              ) : (
+                <span aria-current="page">{title}</span>
+              )}
+            </nav>
           </div>
 
           <button
@@ -214,7 +236,16 @@ export default function AppShell({ user, orgName, logo, features, announcement, 
             </button>
             <NotificationBell />
             <span aria-hidden className="hidden sm:block w-px h-8 bg-border mx-1" />
-            <UserMenu name={user.name ?? ''} email={user.email ?? ''} role={user.role} royal={royal} avatar={user.avatar} />
+            <UserMenu
+              name={user.name ?? ''}
+              email={user.email ?? ''}
+              role={user.role}
+              royal={royal}
+              superAdmin={superAdmin}
+              premium={premium}
+              premiumEnabled={features?.premium === true}
+              avatar={user.avatar}
+            />
           </div>
         </header>
 
@@ -237,6 +268,15 @@ export default function AppShell({ user, orgName, logo, features, announcement, 
                 <b>Maintenance mode is ON.</b> Students and mentors can&apos;t use the LMS right now. Turn it off in Settings → Sign-in &amp; maintenance.
               </div>
             )}
+            {notice && (
+              <div role="status" className="mb-5 flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] border border-warning/40 bg-warning/10 text-sm">
+                <NavIcon name="crown" size={18} className="text-warning shrink-0" />
+                <p className="flex-1">{notice.text}</p>
+                <Link href={notice.href} className="btn-outline h-9 px-4 text-sm shrink-0">
+                  {notice.cta}
+                </Link>
+              </div>
+            )}
             {announcement && <Announcement a={announcement} />}
             <div className="ui-enter" key={pathname}>
               {children}
@@ -245,8 +285,8 @@ export default function AppShell({ user, orgName, logo, features, announcement, 
         </main>
       </div>
 
-      <MobileNav role={user.role} features={features} onMenu={() => setMobileOpen(true)} />
-      <CommandPalette role={user.role} royal={royal} features={features} />
+      <MobileNav role={user.role} royal={royal} superAdmin={superAdmin} features={features} onMenu={() => setMobileOpen(true)} />
+      <CommandPalette role={user.role} royal={royal} superAdmin={superAdmin} features={features} overrides={overrides} />
     </div>
   );
 }

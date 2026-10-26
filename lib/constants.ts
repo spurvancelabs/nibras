@@ -46,6 +46,16 @@ export const NOTIFICATION_TYPES = [
   'certificate.issued',
   'security.signin',
   'security.2fa',
+  'premium.granted',
+  'premium.expiring',
+  'premium.expired',
+  'attendance.alert',
+  'account.inactive',
+  'account.suspended',
+  'account.reactivated',
+  'grading.ready',
+  'achievement.earned',
+  'system.alert',
 ] as const;
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
 

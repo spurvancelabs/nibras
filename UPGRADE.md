@@ -1,5 +1,58 @@
 # Nibras LMS — upgrade notes
 
+## Update 3 — premium, automation, AI grading & navigation (October 2026)
+
+Apply on top of Update 2. **No database migration is needed.** Every new setting starts in a safe "off" or "same as before" state:
+
+- Premium is **off**, so every theme stays free.
+- No automation rule exists, so nobody is reminded, flagged or paused.
+- AI grading is **off**.
+
+Nobody is signed out by deploying.
+
+### How to apply
+
+1. Copy every file from this package into your project at the same path (overwrite). `CHANGES.md` lists each file.
+2. **Delete** `app/api/theme-preview/route.ts` (an unauthenticated demo endpoint).
+3. No new packages are needed. Run `pnpm install` only if your lockfile is out of date, then commit.
+4. Deploy to a **Vercel preview** first and run the checklist below.
+
+### Environment variables (Vercel → Settings → Environment Variables)
+
+| Variable | Needed for | Notes |
+|---|---|---|
+| `CRON_SECRET` | **Daily jobs** (premium notices, attendance alerts, inactivity automation, data clean-up) | Any long random string. Vercel sends it to the cron automatically. Without it the daily job refuses to run; nothing else breaks. |
+| `SUPER_ADMIN_EMAILS` | Optional | Comma-separated emails that are always Super Admin. Otherwise claim it in Security (see below). |
+| `AI_BASE_URL`, `AI_API_KEY`, `AI_MODEL` | Optional: AI grading suggestions | Works with any OpenAI-compatible API. Free-tier options include Groq (`https://api.groq.com/openai/v1`, e.g. `llama-3.3-70b-versatile`) and Google Gemini's OpenAI endpoint. Keys are never stored in the database. |
+| `AI_TIMEOUT_MS` | Optional | Default 8000 (Vercel functions stop at 10 s). |
+| `AI_PROVIDER=mock` | **Testing only** | A fake AI so you can try the grading flow on a preview. Never set it in production. |
+
+### First steps after deploying
+
+1. **Become Super Admin.** In Security, press **"Make me the Super Admin"** (asks for your password). Until someone does this, every royal admin has Super Admin powers, so nobody is locked out.
+2. **Settings → Premium** (Super Admin): turn Premium on, name it, and write "How to get it". There is no card payment; members get Premium from an admin or a code.
+3. **Settings → Theme access:** choose which categories are Premium (Deluxe and Anime Deluxe by default) and add single-theme exceptions.
+4. **Settings → Attendance rules:** set the threshold (default 75%) and the absences-in-a-row alert (default 3).
+5. **Admin → Account automation:** create a rule, press **Preview** and **Dry run**, and only then switch it on.
+6. Optional: **Settings → AI grading** (Super Admin). Turn it on once the AI variables are set.
+
+### Checklist on the preview deployment
+
+- [ ] Sign in as a learner, mentor and admin. Each sees the grouped menu for their role, and existing pages still work.
+- [ ] Premium off: Profile → Appearance shows no locks.
+- [ ] Premium on: a free learner sees crowns, gets the Upgrade dialog when picking a premium theme, and can redeem a code.
+- [ ] Mentor: Attendance shows the hub. Mark a register with the keyboard (P/A/L/E). Export the CSV.
+- [ ] Grading: open the queue and grade one submission by hand. With AI configured, ask for one suggestion and approve it.
+- [ ] Automation: Preview and Dry run change nothing. Run now asks for your password.
+- [ ] Forgot password: the link arrives (needs `RESEND_API_KEY`) and works once.
+- [ ] Reports → System health is all green, or tells you what to set.
+
+### Rollback
+
+Redeploy the previous deployment in Vercel. The new collections (premium codes, flags, suggestions…) are simply ignored by the old version, and no existing data was changed in a way the old version can't read.
+
+---
+
 ## Update 2 — design, themes & security (October 2026)
 
 Apply on top of Update 1. **No database migration is needed**: every new setting and user field has a safe default, and nobody is signed out by deploying.

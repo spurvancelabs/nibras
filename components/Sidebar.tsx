@@ -2,24 +2,33 @@
 // FILE: components/Sidebar.tsx
 // App sidebar. Desktop: sticky full-height, collapses to an icon rail (the
 // choice is remembered). Mobile: slide-in drawer with backdrop.
-// Items come from lib/nav.ts (roles, royal-only, feature switches).
+// Items come from lib/nav.ts (roles, permissions, feature switches).
+// UPDATED: grouped menu (Overview, Learning, Teaching, Community,
+// Administration, Security & policy). Groups can be folded; the choice is
+// remembered and the group holding the current page always opens.
 // =============================================================================
 
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import Avatar from './Avatar';
 import NavIcon from './NavIcon';
-import { visibleNav, isActivePath, type Features, type NavItem } from '@/lib/nav';
+import { visibleNav, groupedNav, groupLabel, isActivePath, type Features, type NavItem, type NavGroup } from '@/lib/nav';
+import type { PermissionOverrides } from '@/lib/rbac';
+import { LEVEL_LABEL, levelOf } from '@/lib/rbac';
 import { openCommandPalette } from './CommandPalette';
 import type { Role } from '@/lib/constants';
 
 type Props = {
   role: Role;
   royal?: boolean;
+  superAdmin?: boolean;
+  premium?: boolean;
   features?: Partial<Features>;
+  overrides?: PermissionOverrides | null;
   orgName: string;
   logo: string;
   userName?: string;
@@ -30,10 +39,15 @@ type Props = {
   onToggleCollapsed: () => void;
 };
 
+const FOLD_KEY = 'lms-nav-folded';
+
 export default function Sidebar({
   role,
   royal = false,
+  superAdmin = false,
+  premium = false,
   features,
+  overrides,
   orgName,
   logo,
   userName = '',
@@ -44,10 +58,32 @@ export default function Sidebar({
   onToggleCollapsed,
 }: Props) {
   const pathname = usePathname() ?? '';
-  const items = visibleNav(role, royal, features).filter((n) => n.group !== 'account');
-  const learn = items.filter((n) => n.group === 'learn');
-  const manage = items.filter((n) => n.group === 'manage');
+  const rbacUser = { role, royal, superAdmin };
+  const groups = groupedNav(visibleNav(rbacUser, features, overrides).filter((n) => n.group !== 'account'));
   const rail = collapsed ? 'md:hidden' : '';
+  const levelLabel = LEVEL_LABEL[levelOf(rbacUser)];
+
+  // Folded groups (remembered per browser)
+  const [folded, setFolded] = useState<NavGroup[]>([]);
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(FOLD_KEY) ?? '[]');
+      if (Array.isArray(v)) setFolded(v.filter((x): x is NavGroup => typeof x === 'string'));
+    } catch {
+      /* ignore */
+    }
+  }, []);
+  function toggleGroup(g: NavGroup) {
+    setFolded((f) => {
+      const next = f.includes(g) ? f.filter((x) => x !== g) : [...f, g];
+      try {
+        localStorage.setItem(FOLD_KEY, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
 
   function renderLink(item: NavItem) {
     const active = isActivePath(pathname, item.href);
@@ -58,7 +94,7 @@ export default function Sidebar({
         onClick={onClose}
         title={collapsed ? item.label : undefined}
         aria-current={active ? 'page' : undefined}
-        className={`group relative flex items-center gap-3 h-11 px-3 rounded-[var(--radius-md)] text-sm font-medium transition-colors ${
+        className={`group relative flex items-center gap-3 h-10 px-3 rounded-[var(--radius-md)] text-sm font-medium transition-colors ${
           collapsed ? 'md:justify-center md:px-0' : ''
         } ${active ? 'bg-primary text-primary-fg shadow-sm' : 'text-muted hover:text-text hover:bg-hero'}`}
       >
@@ -76,9 +112,6 @@ export default function Sidebar({
     );
   }
 
-  const heading = (label: string) => (
-    <p className={`px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted/80 ${collapsed ? 'md:sr-only' : ''}`}>{label}</p>
-  );
 
   return (
     <>
@@ -150,18 +183,47 @@ export default function Sidebar({
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto overscroll-contain px-3 py-4 space-y-6">
-          <div className="space-y-1">
-            {heading('Menu')}
-            {learn.map(renderLink)}
-          </div>
-          {manage.length > 0 && (
-            <div className="space-y-1">
-              {heading('Admin')}
-              {collapsed && <span aria-hidden className="hidden md:block mx-3 mb-2 h-px bg-border" />}
-              {manage.map(renderLink)}
-            </div>
-          )}
+        <nav className="flex-1 overflow-y-auto overscroll-contain px-3 py-3 space-y-3">
+          {groups.map(({ group, items }, gi) => {
+            const hasActive = items.some((i) => isActivePath(pathname, i.href));
+            const isFolded = folded.includes(group) && !hasActive && group !== 'overview';
+            const id = `nav-group-${group}`;
+            return (
+              <div key={group} className="space-y-0.5">
+                {group === 'overview' ? null : (
+                  <>
+                    {collapsed && gi > 0 && <span aria-hidden className="hidden md:block mx-3 my-2 h-px bg-border" />}
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group)}
+                      aria-expanded={!isFolded}
+                      aria-controls={id}
+                      className={`w-full flex items-center gap-2 px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted/80 hover:text-text transition-colors ${
+                        collapsed ? 'md:sr-only' : ''
+                      }`}
+                    >
+                      <span className="flex-1 text-left truncate">{groupLabel(group, role)}</span>
+                      <NavIcon
+                        name="chevron"
+                        size={13}
+                        className={`shrink-0 transition-transform duration-200 ${isFolded ? '' : 'rotate-90'}`}
+                      />
+                    </button>
+                  </>
+                )}
+                <div
+                  id={id}
+                  className={`grid transition-[grid-template-rows] duration-200 ease-out ${
+                    isFolded ? `grid-rows-[0fr] ${collapsed ? 'md:grid-rows-[1fr]' : ''}` : 'grid-rows-[1fr]'
+                  }`}
+                >
+                  <div className={`overflow-hidden space-y-0.5 ${isFolded ? `invisible ${collapsed ? 'md:visible' : ''}` : ''}`}>
+                    {items.map(renderLink)}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </nav>
 
         {/* Footer: profile + collapse */}
@@ -178,9 +240,13 @@ export default function Sidebar({
             <Avatar name={userName || 'User'} src={avatar} size={36} />
             <span className={`min-w-0 leading-tight ${rail}`}>
               <span className="block text-sm font-medium text-text truncate">{userName || 'Profile'}</span>
-              <span className="block text-[11px] text-muted capitalize">
-                {role}
-                {royal ? ' · royal' : ''}
+              <span className="flex items-center gap-1 text-[11px] text-muted">
+                <span className="truncate">{levelLabel}</span>
+                {premium && (
+                  <span title="Premium member" className="inline-flex items-center gap-0.5 px-1.5 rounded-full bg-warning/15 text-warning font-semibold">
+                    <NavIcon name="crown" size={10} /> Premium
+                  </span>
+                )}
               </span>
             </span>
           </Link>

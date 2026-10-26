@@ -3,11 +3,14 @@
 // Admin → Settings (redesigned). Sections: General, Branding, Landing page,
 // Appearance (550 themes + 150+ styles), Features, Announcement, Certificates,
 // Members & IDs, Security, Sign-in page, Maintenance.
+// NEW: Premium, Theme access, Attendance rules, AI grading, Data retention,
+// Roles & delegation (each shows who may change it; the server re-checks).
 // Open a section directly with ?section=appearance (etc.).
 // =============================================================================
 
 import type { Metadata } from 'next';
-import { requireRole, isRoyal } from '@/lib/auth-helpers';
+import { requirePermission, isRoyal, hasPermission } from '@/lib/auth-helpers';
+import { aiConfigured } from '@/lib/ai-provider';
 import { getSettings } from '@/lib/settings';
 import { twoFactorStats } from '@/lib/two-factor';
 import SettingsShell from './SettingsShell';
@@ -16,18 +19,23 @@ export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Settings' };
 
 export default async function AdminSettingsPage({ searchParams }: { searchParams: Promise<{ section?: string }> }) {
-  const admin = await requireRole('admin');
-  const [settings, royal, sp, stats] = await Promise.all([
+  const admin = await requirePermission('settings.edit');
+  const [settings, royal, sp, stats, canSuper, canEntitle] = await Promise.all([
     getSettings(),
     isRoyal(admin),
     searchParams,
     twoFactorStats(admin.orgId).catch(() => []),
+    hasPermission(admin, 'premium.policy'),
+    hasPermission(admin, 'themes.entitlements'),
   ]);
 
   return (
     <SettingsShell
       initial={settings}
       canRoyal={royal}
+      canSuper={canSuper && royal}
+      canEntitle={canEntitle}
+      aiConfigured={aiConfigured()}
       initialSection={sp.section}
       twoFactorStats={stats}
       viewerHas2fa={admin.twoFactorEnabled === true}

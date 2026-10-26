@@ -25,6 +25,10 @@ import AccountForm from './AccountForm';
 import PasswordForm from './PasswordForm';
 import TwoFactorPanel from './TwoFactorPanel';
 import PersonalAppearance from './PersonalAppearance';
+import SignOutEverywhere from './SignOutEverywhere';
+import { LEVEL_LABEL, levelOf } from '@/lib/rbac';
+import { policyFrom } from '@/lib/premium';
+import { hasPremiumAccess } from '@/lib/entitlements';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Profile' };
@@ -65,8 +69,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             <p className="text-sm text-muted truncate">{user.email}</p>
             <div className="mt-3 flex flex-wrap gap-2 text-xs">
               <span className="inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full bg-surface/80 border border-border capitalize">
-                <NavIcon name="user" size={13} /> {user.role}
-                {user.royal ? ' · 👑 royal' : ''}
+                <NavIcon name="user" size={13} /> {LEVEL_LABEL[levelOf({ role: me.role, royal: me.royal, superAdmin: me.superAdmin })]}
               </span>
               {user.memberId && <span className="inline-flex items-center h-7 px-2.5 rounded-full bg-surface/80 border border-border font-mono">{user.memberId}</span>}
               <span className={`inline-flex items-center gap-1.5 h-7 px-2.5 rounded-full border ${tfa.enabled ? 'bg-success/10 text-success border-success/30' : 'bg-surface/80 border-border'}`}>
@@ -123,6 +126,7 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
             orgName={settings.orgName || 'Nibras'}
           />
           <PasswordForm minLength={settings.passwordMinLength} lastChanged={user.passwordChangedAt ? formatDate(user.passwordChangedAt) : null} />
+          <SignOutEverywhere />
           <SettingsCard
             title="Recent sign-in activity"
             description="If you see something you don't recognise, change your password and turn on two-step sign-in."
@@ -168,6 +172,9 @@ export default async function ProfilePage({ searchParams }: { searchParams: Prom
           showScene={settings.showScene}
           orgThemeName={findPreset(settings.themePresetId)?.name ?? 'Custom'}
           orgStyleName={findUiStyle(settings.uiStyle)?.name ?? 'Classic'}
+          policy={policyFrom(settings)}
+          hasPremium={hasPremiumAccess(me, policyFrom(settings))}
+          premiumName={settings.premiumName || 'Premium'}
         />
       )}
     </div>

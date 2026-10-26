@@ -16,6 +16,9 @@ export type AttendanceRosterRow = {
   avatar: string;
   status: AttendanceStatus | null;
   note: string;
+  /** When this record was last saved (ISO) — used to detect edit conflicts. */
+  markedAt: string | null;
+  memberId?: string;
 };
 
 export type AttendanceEntry = {
@@ -55,12 +58,14 @@ type PopulatedStudent = {
   email: string;
   avatar?: string;
   status?: string;
+  memberId?: string;
 };
 
 type AttendanceLean = {
   studentId: unknown;
   status: AttendanceStatus;
   note?: string;
+  markedAt?: Date;
 };
 
 /**
@@ -76,7 +81,7 @@ export async function getSessionAttendanceRoster(
 
   const [program, records] = await Promise.all([
     Program.findOne({ _id: programId, orgId })
-      .populate('students', 'name email avatar status')
+      .populate('students', 'name email avatar status memberId')
       .lean(),
     Attendance.find({ orgId, sessionId }).lean(),
   ]);
@@ -101,6 +106,8 @@ export async function getSessionAttendanceRoster(
         avatar: s.avatar ?? '',
         status: rec?.status ?? null,
         note: rec?.note ?? '',
+        markedAt: rec?.markedAt ? new Date(rec.markedAt).toISOString() : null,
+        memberId: s.memberId ?? '',
       };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -110,9 +117,18 @@ export async function getSessionAttendanceRoster(
 // Bulk upsert
 // ---------------------------------------------------------------------------
 
+export type AttendanceChange = { studentId: string; from: AttendanceStatus | null; to: AttendanceStatus; note: string };
+export type AttendanceConflict = { studentId: string; status: AttendanceStatus | null; markedAt: string | null };
+
 /**
  * Sets attendance for a set of students on a session. Upserts — safe to call
  * repeatedly. Empty entries are ignored (no accidental clearing).
+ *
+ * Conflict detection: pass `base` = the markedAt values the editor loaded.
+ * If someone else saved one of those students since, nothing is written and
+ * the conflicts are returned (unless `force`).
+ * Only rows whose status or note actually change are written; the changes
+ * are returned for the audit log.
  */
 export async function setSessionAttendance(input: {
   orgId: string;
@@ -120,7 +136,12 @@ export async function setSessionAttendance(input: {
   sessionId: string;
   markedBy: string;
   entries: AttendanceEntry[];
-}): Promise<{ ok: true; count: number } | { ok: false; error: string }> {
+  base?: Record<string, string | null>;
+  force?: boolean;
+}): Promise<
+  | { ok: true; count: number; changes: AttendanceChange[] }
+  | { ok: false; error: string; conflicts?: AttendanceConflict[] }
+> {
   await db();
 
   // Verify session belongs to org + program
@@ -133,33 +154,64 @@ export async function setSessionAttendance(input: {
     .lean();
   if (!session) return { ok: false, error: 'Session not found' };
 
-  if (input.entries.length === 0) return { ok: true, count: 0 };
+  if (input.entries.length === 0) return { ok: true, count: 0, changes: [] };
 
-  const ops = input.entries.map((e) => ({
-    updateOne: {
-      filter: {
-        orgId: input.orgId,
-        sessionId: input.sessionId,
-        studentId: e.studentId,
-      },
-      update: {
-        $set: {
-          orgId: input.orgId,
-          programId: input.programId,
-          sessionId: input.sessionId,
-          studentId: e.studentId,
-          status: e.status,
-          note: (e.note ?? '').slice(0, 300),
-          markedBy: input.markedBy,
-          markedAt: new Date(),
+  // Only students enrolled in the program can be marked.
+  const program = (await Program.findOne({ _id: input.programId, orgId: input.orgId }).select('students').lean()) as { students?: unknown[] } | null;
+  const enrolled = new Set((program?.students ?? []).map(String));
+  const entries = input.entries.filter((e) => enrolled.has(e.studentId));
+  if (entries.length !== input.entries.length) return { ok: false, error: 'Some people are not learners in this program.' };
+
+  const existing = (await Attendance.find({
+    orgId: input.orgId,
+    sessionId: input.sessionId,
+    studentId: { $in: entries.map((e) => e.studentId) },
+  })
+    .select('studentId status note markedAt')
+    .lean()) as unknown as AttendanceLean[];
+  const before = new Map(existing.map((r) => [String(r.studentId), r]));
+
+  if (input.base && !input.force) {
+    const conflicts: AttendanceConflict[] = [];
+    for (const e of entries) {
+      if (!(e.studentId in input.base)) continue;
+      const cur = before.get(e.studentId);
+      const curAt = cur?.markedAt ? new Date(cur.markedAt).toISOString() : null;
+      if (curAt !== input.base[e.studentId]) conflicts.push({ studentId: e.studentId, status: cur?.status ?? null, markedAt: curAt });
+    }
+    if (conflicts.length) return { ok: false, error: 'Someone else changed this attendance while you were editing.', conflicts };
+  }
+
+  const changes: AttendanceChange[] = [];
+  const now = new Date();
+  const ops = [];
+  for (const e of entries) {
+    const note = (e.note ?? '').slice(0, 300);
+    const prev = before.get(e.studentId);
+    if (prev && prev.status === e.status && (prev.note ?? '') === note) continue;
+    changes.push({ studentId: e.studentId, from: prev?.status ?? null, to: e.status, note });
+    ops.push({
+      updateOne: {
+        filter: { orgId: input.orgId, sessionId: input.sessionId, studentId: e.studentId },
+        update: {
+          $set: {
+            orgId: input.orgId,
+            programId: input.programId,
+            sessionId: input.sessionId,
+            studentId: e.studentId,
+            status: e.status,
+            note,
+            markedBy: input.markedBy,
+            markedAt: now,
+          },
         },
+        upsert: true,
       },
-      upsert: true,
-    },
-  }));
+    });
+  }
 
-  await Attendance.bulkWrite(ops, { ordered: false });
-  return { ok: true, count: input.entries.length };
+  if (ops.length) await Attendance.bulkWrite(ops, { ordered: false });
+  return { ok: true, count: ops.length, changes };
 }
 
 // ---------------------------------------------------------------------------

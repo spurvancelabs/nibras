@@ -10,6 +10,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { signIn } from 'next-auth/react';
+import Character, { type CharacterId } from '@/components/Character';
 import { useRouter } from 'next/navigation';
 
 type Props = {
@@ -23,6 +24,8 @@ type Props = {
   passwordChanged?: boolean;
   /** Optional artwork from Settings → Appearance. */
   heroArt?: string;
+  /** Original anime character for Anime Deluxe organisation themes. */
+  character?: CharacterId | null;
 };
 
 export default function LoginForm({
@@ -33,6 +36,7 @@ export default function LoginForm({
   notice = '',
   passwordChanged = false,
   heroArt = '',
+  character = null,
 }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -65,6 +69,9 @@ export default function LoginForm({
       } else if (err.includes('TWO_FACTOR_INVALID')) {
         setNeedCode(true);
         setError(useRecovery ? 'That recovery code is not valid (each code works once).' : 'That code is not right. Use the newest code from your app.');
+      } else if (err.includes('ACCOUNT_DISABLED')) {
+        setNeedCode(false);
+        setError('Your account is paused. Nothing was deleted — please contact your admin to reactivate it.');
       } else if (/too many/i.test(err)) {
         setError('Too many sign-in attempts. Please wait 15 minutes and try again.');
       } else {
@@ -142,6 +149,7 @@ export default function LoginForm({
           </div>
         </div>
 
+        {character && <Character id={character} className="pointer-events-none absolute right-8 bottom-6 h-[62%] w-auto max-w-[50%] drop-shadow-2xl" />}
         {heroArt && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -242,7 +250,12 @@ export default function LoginForm({
               </div>
 
               <div>
-                <label className="label" htmlFor="password">Password</label>
+                <div className="flex items-center justify-between">
+                  <label className="label" htmlFor="password">Password</label>
+                  <Link href="/forgot-password" className="text-xs text-muted hover:text-text underline-offset-2 hover:underline">
+                    Forgot password?
+                  </Link>
+                </div>
                 <div className="relative">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted">
                     <rect x="3" y="11" width="18" height="11" rx="2" /><path d="M7 11V7a5 5 0 0 1 10 0v4" />

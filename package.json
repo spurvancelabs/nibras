@@ -9,6 +9,8 @@
     "lint": "echo 'Linting temporarily disabled - TODO: Fix ESLint v9 flat config'",
     "lint:fix": "eslint . --fix",
     "type-check": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "backup": "tsx scripts/backup.ts",
     "build:analyze": "ANALYZE=true next build",
     "vercel-build": "pnpm build"
   },

@@ -12,9 +12,21 @@ import NavIcon from './NavIcon';
 import { mobileNav, isActivePath, type Features } from '@/lib/nav';
 import type { Role } from '@/lib/constants';
 
-export default function MobileNav({ role, features, onMenu }: { role: Role; features?: Partial<Features>; onMenu: () => void }) {
+export default function MobileNav({
+  role,
+  royal = false,
+  superAdmin = false,
+  features,
+  onMenu,
+}: {
+  role: Role;
+  royal?: boolean;
+  superAdmin?: boolean;
+  features?: Partial<Features>;
+  onMenu: () => void;
+}) {
   const pathname = usePathname() ?? '';
-  const items = mobileNav(role, features);
+  const items = mobileNav({ role, royal, superAdmin }, features);
   return (
     <nav
       aria-label="Quick navigation"
@@ -33,7 +45,7 @@ export default function MobileNav({ role, features, onMenu }: { role: Role; feat
                 <span className={`grid place-items-center w-11 h-7 rounded-full transition-colors ${active ? 'bg-primary text-primary-fg' : ''}`}>
                   <NavIcon name={n.icon} size={19} />
                 </span>
-                <span className="truncate max-w-full px-1">{n.label.replace('My programs', 'Programs')}</span>
+                <span className="truncate max-w-full px-1">{n.label.replace('My programs', 'Programs').replace('Grading queue', 'Grading').replace('My progress', 'Progress')}</span>
               </Link>
             </li>
           );

@@ -8,6 +8,8 @@ import { redirect } from 'next/navigation';
 import { auth } from '@/lib/auth';
 import { getSettings } from '@/lib/settings';
 import LoginForm from './LoginForm';
+import { findPreset } from '@/lib/theme-config';
+import { characterFor } from '@/lib/appearance';
 
 export default async function LoginPage({
   searchParams,
@@ -29,6 +31,7 @@ export default async function LoginPage({
       notice={s.loginNotice || ''}
       passwordChanged={sp.changed === '1'}
       heroArt={s.heroArt || ''}
+      character={s.heroArt ? null : characterFor(findPreset(s.themePresetId), s.showScene)}
     />
   );
 }

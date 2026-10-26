@@ -74,7 +74,31 @@
     font-family: var(--ui-font-body, var(--font-sans));
     -webkit-font-smoothing: antialiased;
     -webkit-tap-highlight-color: transparent;
-    scrollbar-color: color-mix(in srgb, var(--color-text) 22%, transparent) transparent;
+    /* Themed scrollbars: tinted with the theme's primary colour. Styles
+       may override --ui-scroll-thumb (e.g. Deluxe uses gold). */
+    --ui-scroll-thumb: color-mix(in srgb, var(--color-primary) 38%, color-mix(in srgb, var(--color-text) 18%, transparent));
+    --ui-scroll-thumb-hover: color-mix(in srgb, var(--color-primary) 65%, transparent);
+    scrollbar-color: var(--ui-scroll-thumb) transparent;
+    scrollbar-width: thin;
+  }
+  * {
+    scrollbar-color: var(--ui-scroll-thumb) transparent;
+  }
+  *:hover {
+    scrollbar-color: var(--ui-scroll-thumb-hover) transparent;
+  }
+  /* Safari / older Chromium: pill-shaped WebKit scrollbars */
+  @supports not (scrollbar-color: red blue) {
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      background: var(--ui-scroll-thumb);
+      border-radius: 999px;
+      border: 3px solid transparent;
+      background-clip: content-box;
+    }
+    ::-webkit-scrollbar-thumb:hover { background-color: var(--ui-scroll-thumb-hover); }
+    ::-webkit-scrollbar-corner { background: transparent; }
   }
   /* The body is transparent so the style backdrop / theme scene can show. */
   body {
@@ -490,6 +514,42 @@
   }
 }
 
+/* Flagship Deluxe style: gilded edges on cards, dialogs and menus, gold
+   focus rings, refined buttons. (Browsers without style queries keep the
+   normal Deluxe look.) */
+@container style(--fx-deluxe: 1) {
+  .bg-surface.border:not(.rounded-full),
+  .ui-dialog {
+    --ui-gold: color-mix(in srgb, #d4af37 78%, var(--color-primary));
+    border-color: transparent !important;
+    background:
+      linear-gradient(var(--ui-deluxe-fill, color-mix(in srgb, var(--color-surface) 94%, transparent)), var(--ui-deluxe-fill, color-mix(in srgb, var(--color-surface) 94%, transparent))) padding-box,
+      linear-gradient(135deg, #f7e2a1, var(--ui-gold) 28%, color-mix(in srgb, var(--ui-gold) 45%, transparent) 50%, #f3d98c 72%, #a9792b) border-box;
+  }
+  .ui-popover.bg-surface {
+    --ui-deluxe-fill: color-mix(in srgb, var(--color-surface) 98%, transparent);
+  }
+  .btn-primary,
+  button.bg-primary {
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 0 0 1px color-mix(in srgb, #d4af37 55%, transparent), 0 8px 20px color-mix(in srgb, var(--color-primary) 30%, transparent);
+  }
+  .input:focus,
+  .input:focus-visible {
+    border-color: #c9a24a;
+    box-shadow: 0 0 0 3px color-mix(in srgb, #d4af37 30%, transparent);
+  }
+  .ui-topbar,
+  .ui-sidebar {
+    border-color: color-mix(in srgb, #d4af37 40%, var(--color-border)) !important;
+  }
+  h1 {
+    background: linear-gradient(100deg, var(--color-text) 30%, color-mix(in srgb, #b8862b 70%, var(--color-text)) 60%, var(--color-text) 85%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
 @keyframes ui-rise {
   from { opacity: 0; translate: 0 10px; }
   to { opacity: 1; translate: 0 0; }
@@ -553,4 +613,55 @@
     print-color-adjust: exact;
   }
   .no-print { display: none !important; }
+}
+
+/* -------------------------------------------------------------------------
+   Original anime characters (components/Character.tsx): gentle idle motion.
+   ------------------------------------------------------------------------- */
+.ch-anim .ch-body {
+  animation: ch-float 4.8s ease-in-out infinite;
+  transform-origin: 100px 280px;
+}
+.ch-anim .ch-shadow {
+  animation: ch-shadow 4.8s ease-in-out infinite;
+  transform-origin: 100px 290px;
+}
+.ch-anim .ch-blink {
+  animation: ch-blink 5.5s infinite;
+  transform-origin: 100px 106px;
+}
+.ch-anim .ch-glow {
+  animation: ch-glow 2.6s ease-in-out infinite;
+}
+.ch-anim .ch-sparkle {
+  animation: ch-twinkle 3.4s ease-in-out infinite;
+}
+@keyframes ch-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes ch-shadow {
+  0%, 100% { transform: scaleX(1); opacity: 0.14; }
+  50% { transform: scaleX(0.88); opacity: 0.09; }
+}
+@keyframes ch-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+@keyframes ch-glow {
+  0%, 100% { opacity: 1; filter: none; }
+  50% { opacity: 0.82; filter: drop-shadow(0 0 6px var(--color-accent, #fde68a)); }
+}
+@keyframes ch-twinkle {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ch-anim .ch-body,
+  .ch-anim .ch-shadow,
+  .ch-anim .ch-blink,
+  .ch-anim .ch-glow,
+  .ch-anim .ch-sparkle {
+    animation: none !important;
+  }
 }

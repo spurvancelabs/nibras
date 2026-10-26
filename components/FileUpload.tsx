@@ -6,6 +6,7 @@
 
 'use client';
 
+import { checkFileBeforeUpload } from '@/lib/upload-policy';
 import { useRef, useState } from 'react';
 
 export type UploadedFile = {
@@ -39,6 +40,12 @@ export default function FileUpload({
 
   async function handleFile(file: File) {
     setError('');
+    const problem = checkFileBeforeUpload(file);
+    if (problem) {
+      setError(problem);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
     setUploading(true);
     setProgress(0);
     setFileName(file.name);

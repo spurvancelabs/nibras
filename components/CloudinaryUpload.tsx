@@ -6,6 +6,7 @@
 
 'use client';
 
+import { checkFileBeforeUpload } from '@/lib/upload-policy';
 import { useRef, useState } from 'react';
 
 type Props = {
@@ -40,6 +41,12 @@ export default function CloudinaryUpload({
 
   async function handleFile(file: File) {
     setError('');
+    const problem = checkFileBeforeUpload(file);
+    if (problem) {
+      setError(problem);
+      if (inputRef.current) inputRef.current.value = '';
+      return;
+    }
     setUploading(true);
 
     try {

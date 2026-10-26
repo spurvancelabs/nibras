@@ -12,6 +12,7 @@ import { db } from './db';
 import User from '@/models/User';
 import type { Role } from '@/lib/constants';
 import { computeRoyal } from './royal';
+import { computeSuper } from './super';
 
 export type AuthState = {
   role: Role;
@@ -30,13 +31,17 @@ export type AuthState = {
   twoFactorEnabled: boolean;
   /** Profile photo URL ('' = initials). */
   avatar: string;
+  /** Effective Super Admin status (see lib/super.ts). */
+  superAdmin: boolean;
+  /** Premium membership end (ISO) or null. */
+  premiumUntil: string | null;
 };
 
 const tag = (userId: string) => `auth-state:${userId}`;
 
 async function load(userId: string): Promise<AuthState | null> {
   await db();
-  const u = (await User.findById(userId).select('role status sessionVersion orgId name email royal themePreset uiStyle twoFactorEnabled avatar').lean()) as
+  const u = (await User.findById(userId).select('role status sessionVersion orgId name email royal themePreset uiStyle twoFactorEnabled avatar superAdmin premiumUntil').lean()) as
     | {
         role: Role;
         status: 'active' | 'disabled';
@@ -49,6 +54,8 @@ async function load(userId: string): Promise<AuthState | null> {
         uiStyle?: string;
         twoFactorEnabled?: boolean;
         avatar?: string;
+        superAdmin?: boolean;
+        premiumUntil?: Date | null;
       }
     | null;
   if (!u) return null;
@@ -58,6 +65,15 @@ async function load(userId: string): Promise<AuthState | null> {
     status: u.status,
     email: u.email,
     royal: u.royal,
+    superAdmin: u.superAdmin,
+  });
+  const superAdmin = await computeSuper({
+    orgId: String(u.orgId),
+    role: u.role,
+    status: u.status,
+    email: u.email,
+    superAdmin: u.superAdmin,
+    royal,
   });
   return {
     royal,
@@ -65,6 +81,8 @@ async function load(userId: string): Promise<AuthState | null> {
     uiStyle: u.uiStyle ?? '',
     twoFactorEnabled: u.twoFactorEnabled === true,
     avatar: u.avatar ?? '',
+    superAdmin,
+    premiumUntil: u.premiumUntil ? new Date(u.premiumUntil).toISOString() : null,
     role: u.role,
     status: u.status === 'disabled' ? 'disabled' : 'active',
     sessionVersion: Number(u.sessionVersion ?? 0) || 0,

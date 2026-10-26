@@ -8,9 +8,10 @@
 
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { requireRole, isRoyal } from '@/lib/auth-helpers';
+import { requireRole, isRoyal, hasPermission } from '@/lib/auth-helpers';
 import RoyalToggle from './RoyalToggle';
 import ResetTwoFactor from './ResetTwoFactor';
+import AccountExtras from './AccountExtras';
 import { twoFactorStatus } from '@/lib/two-factor';
 import { getUserById, getUserFootprint } from '@/lib/users';
 import { listPrograms } from '@/lib/programs';
@@ -101,6 +102,21 @@ export default async function EditUserPage({
         memberIdFormat={settings.memberIdFormat}
         viewerRoyal={viewerRoyal}
       />
+
+      {!isSelf && (
+        <AccountExtras
+          userId={user.id}
+          role={user.role}
+          status={user.status}
+          exempt={user.automationExempt}
+          suspendedReason={user.suspendedReason}
+          suspendedBy={user.suspendedBy}
+          suspendedAt={user.suspendedAt}
+          premiumUntil={user.premiumUntil}
+          premiumOn={settings.premiumEnabled === true}
+          canReview={await hasPermission(admin, 'automation.review')}
+        />
+      )}
 
       {viewerRoyal && !isSelf && (
         <ResetTwoFactor userId={user.id} name={user.name} enabled={(await twoFactorStatus(admin.orgId, user.id).catch(() => ({ enabled: false }))).enabled} />

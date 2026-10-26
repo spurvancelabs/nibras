@@ -1,3 +1,23 @@
+const isDev = process.env.NODE_ENV !== 'production';
+
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "img-src 'self' data: blob: https:",
+  "font-src 'self' data: https://fonts.gstatic.com",
+  `connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com${isDev ? ' ws: wss:' : ''}`,
+  'frame-src https://www.youtube.com https://www.youtube-nocookie.com',
+  "media-src 'self' https: blob:",
+  "worker-src 'self' blob:",
+  "manifest-src 'self'",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  ...(isDev ? [] : ['upgrade-insecure-requests']),
+].join('; ');
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
@@ -57,12 +77,10 @@ const nextConfig = {
             value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()',
           },
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          // Safe CSP directives that don't restrict scripts/styles/images:
-          // no framing, no plugins, no <base> hijacking, forms only post here.
-          {
-            key: 'Content-Security-Policy',
-            value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'",
-          },
+          // Content Security Policy: only our own scripts, Google Fonts,
+          // Cloudinary uploads and YouTube recordings. Inline scripts stay
+          // allowed because Next.js needs them for hydration.
+          { key: 'Content-Security-Policy', value: csp },
         ],
       },
     ];

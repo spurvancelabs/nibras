@@ -15,6 +15,10 @@ export type SectionProps = {
   setForm: React.Dispatch<React.SetStateAction<ThemeSettings>>;
   /** Royal admin (maintenance + security settings). */
   canRoyal: boolean;
+  /** Super admin (global policies: premium, AI, retention, delegation). */
+  canSuper: boolean;
+  /** May edit which themes are premium (Royal by default; delegable). */
+  canEntitle: boolean;
 };
 
 export type AppearanceProps = SectionProps & {

@@ -27,17 +27,25 @@ export function envRoyalEmails(): string[] {
     .filter(Boolean);
 }
 
+// Super admins are always royal too (read here to avoid a circular import).
+function envSuperEmailsLocal(): string[] {
+  return (process.env.SUPER_ADMIN_EMAILS ?? '')
+    .split(',')
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 export function isEnvRoyal(email: string | null | undefined): boolean {
   const e = (email ?? '').trim().toLowerCase();
-  return !!e && envRoyalEmails().includes(e);
+  return !!e && (envRoyalEmails().includes(e) || envSuperEmailsLocal().includes(e));
 }
 
 const orgTag = (orgId: string) => `royal-org:${orgId}`;
 
 async function loadOrgHasRoyal(orgId: string): Promise<boolean> {
   await db();
-  const env = envRoyalEmails();
-  const or: Record<string, unknown>[] = [{ royal: true }];
+  const env = [...envRoyalEmails(), ...envSuperEmailsLocal()];
+  const or: Record<string, unknown>[] = [{ royal: true }, { superAdmin: true }];
   if (env.length) or.push({ email: { $in: env } });
   const found = await User.exists({
     orgId: new Types.ObjectId(orgId),
@@ -76,9 +84,10 @@ export async function computeRoyal(u: {
   status?: string;
   email?: string | null;
   royal?: boolean | null;
+  superAdmin?: boolean | null;
 }): Promise<boolean> {
   if (u.role !== 'admin' || u.status === 'disabled') return false;
-  if (u.royal === true || isEnvRoyal(u.email)) return true;
+  if (u.royal === true || u.superAdmin === true || isEnvRoyal(u.email)) return true;
   try {
     return !(await orgHasRoyal(u.orgId)); // bootstrap mode
   } catch {

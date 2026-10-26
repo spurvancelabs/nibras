@@ -119,7 +119,47 @@ export type ThemeSettings = {
   passwordMinLength: number;
   /** In-app alert when someone signs in from a new network. */
   newSignInAlerts: boolean;
+
+  // Permission delegation (Super Admin) — see lib/rbac.ts DELEGABLE
+  permissionOverrides: Record<string, string>;
+
+  // Premium membership (policy: Super Admin; theme tiers: Royal Admin)
+  /** Off = everything free, nothing is locked (default — no change on deploy). */
+  premiumEnabled: boolean;
+  premiumName: string;
+  /** How to get premium (payment instructions, contact) — shown on /premium. */
+  premiumHowTo: string;
+  /** Extra perks text (one per line) shown on /premium. */
+  premiumPerks: string;
+  /** Theme category → 'free' | 'premium'. */
+  themeTiers: Record<string, Tier>;
+  /** Single theme id → 'free' | 'premium' (wins over its category). */
+  themeOverrides: Record<string, Tier>;
+  /** Design-style category → tier. */
+  styleTiers: Record<string, Tier>;
+  /** Single style id → tier. */
+  styleOverrides: Record<string, Tier>;
+
+  // Attendance rules
+  /** Alert below this attendance percentage. */
+  attendanceThreshold: number;
+  /** Alert after this many absences in a row. */
+  absenceStreakAlert: number;
+  attendanceAlerts: boolean;
+
+  // AI-assisted grading (Super Admin)
+  aiGradingEnabled: boolean;
+  /** Max AI grading requests per calendar month (cost control). */
+  aiMonthlyLimit: number;
+  /** Max characters of a submission sent to the AI. */
+  aiMaxChars: number;
+
+  // Data retention (Super Admin)
+  auditRetentionDays: number;
+  notificationRetentionDays: number;
 };
+
+export type Tier = 'free' | 'premium';
 
 export type TwoFactorPolicy = 'off' | 'optional' | 'admins' | 'staff' | 'all';
 export const TWO_FACTOR_POLICIES: TwoFactorPolicy[] = ['off', 'optional', 'admins', 'staff', 'all'];
@@ -396,6 +436,28 @@ export const DEFAULT_SETTINGS: ThemeSettings = {
   sessionMaxHours: 720,
   passwordMinLength: 8,
   newSignInAlerts: true,
+
+  permissionOverrides: {},
+
+  premiumEnabled: false,
+  premiumName: 'Premium',
+  premiumHowTo: '',
+  premiumPerks: '',
+  themeTiers: { Deluxe: 'premium', 'Anime Deluxe': 'premium' },
+  themeOverrides: {},
+  styleTiers: { Deluxe: 'premium' },
+  styleOverrides: {},
+
+  attendanceThreshold: 75,
+  absenceStreakAlert: 3,
+  attendanceAlerts: true,
+
+  aiGradingEnabled: false,
+  aiMonthlyLimit: 500,
+  aiMaxChars: 12000,
+
+  auditRetentionDays: 365,
+  notificationRetentionDays: 180,
 };
 
 /** Boolean settings and their defaults (used when reading old documents). */
@@ -412,13 +474,25 @@ export const BOOLEAN_SETTING_DEFAULTS = {
   allowUserStyles: true,
   showScene: true,
   newSignInAlerts: true,
+  premiumEnabled: false,
+  attendanceAlerts: true,
+  aiGradingEnabled: false,
 } as const;
 
 /** Numeric settings: [min, max, default]. */
 export const NUMBER_SETTING_LIMITS = {
   sessionMaxHours: [1, 2160, 720],
   passwordMinLength: [8, 64, 8],
+  attendanceThreshold: [0, 100, 75],
+  absenceStreakAlert: [0, 20, 3],
+  aiMonthlyLimit: [0, 100000, 500],
+  aiMaxChars: [1000, 50000, 12000],
+  auditRetentionDays: [30, 3650, 365],
+  notificationRetentionDays: [14, 3650, 180],
 } as const;
+
+/** Settings stored as small JSON objects (validated by the settings action). */
+export const OBJECT_SETTING_KEYS = ['permissionOverrides', 'themeTiers', 'themeOverrides', 'styleTiers', 'styleOverrides'] as const;
 
 export function clampSettingNumber(key: keyof typeof NUMBER_SETTING_LIMITS, v: unknown): number {
   const [min, max, def] = NUMBER_SETTING_LIMITS[key];

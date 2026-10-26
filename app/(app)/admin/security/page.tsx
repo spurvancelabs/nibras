@@ -14,7 +14,8 @@ import { listAdmins } from '@/lib/users';
 import { formatDateTime, formatRelative, timeZoneLabel } from '@/lib/time';
 import { PageHeader, Panel, PanelLink, Badge, Alert, EmptyNote, Icons } from '@/components/ui';
 import Avatar from '@/components/Avatar';
-import { ClaimRoyal, EmergencySignOut } from './SecurityControls';
+import { ClaimRoyal, EmergencySignOut, ClaimSuper, SuperToggle } from './SecurityControls';
+import { orgHasSuper } from '@/lib/super';
 import { twoFactorStats } from '@/lib/two-factor';
 import { getSettings } from '@/lib/settings';
 
@@ -28,8 +29,9 @@ const shield = (
 
 export default async function SecurityPage() {
   const me = await requireRoyal();
-  const [hasRoyal, stats, admins, privileged, tfa, settings] = await Promise.all([
+  const [hasRoyal, hasSuper, stats, admins, privileged, tfa, settings] = await Promise.all([
     orgHasRoyal(me.orgId),
+    orgHasSuper(me.orgId).catch(() => true),
     getSecurityStats(me.orgId),
     listAdmins(me.orgId),
     listAudit(me.orgId, { group: 'security.|user.|settings.|program.|certificate.', limit: 12 }),
@@ -69,6 +71,18 @@ export default async function SecurityPage() {
             You can also set <code>ROYAL_ADMIN_EMAILS</code> on the server.
           </p>
           <ClaimRoyal />
+        </section>
+      )}
+
+      {hasRoyal && !hasSuper && (
+        <section className="rounded-[var(--radius-lg)] border border-primary/40 bg-hero/50 p-5 space-y-3">
+          <h2 className="font-semibold">No Super Admin yet</h2>
+          <p className="text-sm text-muted max-w-2xl">
+            Until a Super Admin exists, <b>every royal admin</b> can change global policies (premium, inactivity automation, AI grading, data
+            retention, delegation). Claim it to keep those powers to one trusted person. You can also set <code>SUPER_ADMIN_EMAILS</code> on the
+            server.
+          </p>
+          <ClaimSuper />
         </section>
       )}
 
@@ -184,7 +198,11 @@ export default async function SecurityPage() {
                 </span>
               </Link>
               <span className="flex flex-wrap items-center gap-1.5">
-                {a.royal && <Badge tone="warning">👑 royal{a.royalFromEnv ? ' (server)' : ''}</Badge>}
+                {a.superAdmin && <Badge tone="primary">🛡️ super{a.superFromEnv ? ' (server)' : ''}</Badge>}
+                {a.royal && !a.superAdmin && <Badge tone="warning">👑 royal{a.royalFromEnv ? ' (server)' : ''}</Badge>}
+                {me.superAdmin && hasSuper && a.id !== me.id && a.royal && a.status === 'active' && (
+                  <SuperToggle id={a.id} name={a.name} value={a.superAdmin} fromEnv={a.superFromEnv} />
+                )}
                 {a.status === 'disabled' ? <Badge tone="danger" dot>disabled</Badge> : <Badge tone="success" dot>active</Badge>}
                 <span className="text-xs text-muted" title={a.lastLoginAt ? formatDateTime(a.lastLoginAt) : undefined}>
                   {a.lastLoginAt ? `signed in ${formatRelative(a.lastLoginAt)}` : 'never signed in'}

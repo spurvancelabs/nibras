@@ -107,6 +107,25 @@ const SettingSchema = new Schema(
     passwordMinLength: { type: Number, default: 8, min: 8, max: 64 },
     newSignInAlerts: { type: Boolean, default: true },
 
+    // Permission delegation + premium + attendance + AI + retention
+    permissionOverrides: { type: Schema.Types.Mixed, default: () => ({}) },
+    premiumEnabled: { type: Boolean, default: false },
+    premiumName: { type: String, default: 'Premium', maxlength: 40 },
+    premiumHowTo: { type: String, default: '', maxlength: 2000 },
+    premiumPerks: { type: String, default: '', maxlength: 2000 },
+    themeTiers: { type: Schema.Types.Mixed, default: () => ({ ...DEFAULT_SETTINGS.themeTiers }) },
+    themeOverrides: { type: Schema.Types.Mixed, default: () => ({}) },
+    styleTiers: { type: Schema.Types.Mixed, default: () => ({ ...DEFAULT_SETTINGS.styleTiers }) },
+    styleOverrides: { type: Schema.Types.Mixed, default: () => ({}) },
+    attendanceThreshold: { type: Number, default: 75, min: 0, max: 100 },
+    absenceStreakAlert: { type: Number, default: 3, min: 0, max: 20 },
+    attendanceAlerts: { type: Boolean, default: true },
+    aiGradingEnabled: { type: Boolean, default: false },
+    aiMonthlyLimit: { type: Number, default: 500, min: 0, max: 100000 },
+    aiMaxChars: { type: Number, default: 12000, min: 1000, max: 50000 },
+    auditRetentionDays: { type: Number, default: 365, min: 30, max: 3650 },
+    notificationRetentionDays: { type: Number, default: 180, min: 14, max: 3650 },
+
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true, versionKey: false }

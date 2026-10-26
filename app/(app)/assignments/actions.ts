@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import { attachmentAllowed } from '@/lib/upload-policy';
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/auth-helpers';
 import {
@@ -24,14 +25,17 @@ import User from '@/models/User';
 import { formatDateTime } from '@/lib/time';
 import { auditBy } from '@/lib/audit';
 
-const attachmentSchema = z.object({
-  url: z.string().min(1).max(1000),
-  publicId: z.string().max(500).optional().default(''),
-  resourceType: z.string().max(50).optional().default('image'),
-  format: z.string().max(20).optional().default(''),
-  size: z.number().nonnegative().optional().default(0),
-  originalName: z.string().max(300).optional().default(''),
-});
+// Only our own Cloudinary uploads, and no dangerous file types (lib/upload-policy).
+const attachmentSchema = z
+  .object({
+    url: z.string().min(1).max(1000),
+    publicId: z.string().max(500).optional().default(''),
+    resourceType: z.string().max(50).optional().default('image'),
+    format: z.string().max(20).optional().default(''),
+    size: z.number().nonnegative().optional().default(0),
+    originalName: z.string().max(300).optional().default(''),
+  })
+  .refine((a) => attachmentAllowed(a), 'One of the files is not allowed. Upload it again or use a different file type.');
 
 const upsertSchema = z
   .object({

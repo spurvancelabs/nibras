@@ -21,6 +21,10 @@ type Props = {
   noneLabel?: string;
   /** Preview in dark mode. */
   dark?: boolean;
+  /** Premium tier of a style (omit = everything free). */
+  isPremium?: (style: UiStyle) => boolean;
+  /** True when this user can't use the style yet. */
+  isLocked?: (style: UiStyle) => boolean;
 };
 
 const LETTERS = encodeURIComponent('AaBbCcDdEeFfGgHhIiJjKkLlMmNnOoPpQqRrSsTtUuVvWwXxYyZz0123456789-&');
@@ -37,12 +41,16 @@ const StyleCard = memo(function StyleCard({
   dark,
   onSelect,
   onPreview,
+  premium,
+  locked,
 }: {
   s: UiStyle;
   active: boolean;
   dark: boolean;
   onSelect: (s: UiStyle) => void;
   onPreview?: (s: UiStyle | null) => void;
+  premium: boolean;
+  locked: boolean;
 }) {
   const vars = useMemo(() => uiStylePreviewVars(s, dark), [s, dark]);
   return (
@@ -104,6 +112,16 @@ const StyleCard = memo(function StyleCard({
         )}
       </div>
       <p className="text-[11px] text-muted leading-snug line-clamp-2 min-h-[2.4em]">{s.description}</p>
+      {premium && (
+        <span
+          className={`absolute top-3 left-3 inline-flex items-center gap-0.5 h-5 px-1.5 rounded-full text-[10px] font-semibold shadow ${
+            locked ? 'bg-text/80 text-bg' : 'bg-warning text-black'
+          }`}
+        >
+          <NavIcon name={locked ? 'lock' : 'crown'} size={10} />
+          {locked ? 'Premium' : 'Pro'}
+        </span>
+      )}
       {active && (
         <span className="absolute top-1 right-1 grid place-items-center w-5 h-5 rounded-full bg-primary text-primary-fg shadow" aria-hidden>
           <NavIcon name="attendance" size={12} />
@@ -113,7 +131,7 @@ const StyleCard = memo(function StyleCard({
   );
 });
 
-export default function UiStylePicker({ value, onSelect, onPreview, noneLabel, dark = false }: Props) {
+export default function UiStylePicker({ value, onSelect, onPreview, noneLabel, dark = false, isPremium, isLocked }: Props) {
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<string>('All');
 
@@ -209,7 +227,16 @@ export default function UiStylePicker({ value, onSelect, onPreview, noneLabel, d
           </button>
         )}
         {list.map((s) => (
-          <StyleCard key={s.id} s={s} active={s.id === value} dark={dark} onSelect={onSelect} onPreview={onPreview} />
+          <StyleCard
+            key={s.id}
+            s={s}
+            active={s.id === value}
+            dark={dark}
+            onSelect={onSelect}
+            onPreview={onPreview}
+            premium={isPremium?.(s) ?? false}
+            locked={isLocked?.(s) ?? false}
+          />
         ))}
         {list.length === 0 && <p className="col-span-full text-sm text-muted py-6 text-center">No styles match “{q}”.</p>}
       </div>

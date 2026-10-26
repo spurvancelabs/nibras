@@ -7,6 +7,7 @@ import { getSession, canManageSession } from '@/lib/sessions';
 import { setSessionAttendance } from '@/lib/attendance';
 import { isProgramActive } from '@/lib/programs';
 import { ATTENDANCE_STATUSES } from '@/lib/constants';
+import { auditBy } from '@/lib/audit';
 
 const entrySchema = z.object({
   studentId: z.string().min(1),
@@ -17,11 +18,14 @@ const entrySchema = z.object({
 const saveSchema = z.object({
   sessionId: z.string().min(1),
   entries: z.array(entrySchema).max(500),
+  /** markedAt values the editor loaded (conflict detection). */
+  base: z.record(z.string(), z.string().nullable()).optional(),
+  force: z.boolean().optional().default(false),
 });
 
 export type ActionResult =
   | { ok: true; count?: number }
-  | { ok: false; error: string };
+  | { ok: false; error: string; conflicts?: { studentId: string; status: string | null; markedAt: string | null }[] };
 
 export async function saveAttendanceAction(raw: unknown): Promise<ActionResult> {
   const user = await requireAuth();
@@ -54,8 +58,28 @@ export async function saveAttendanceAction(raw: unknown): Promise<ActionResult> 
     sessionId: session.id,
     markedBy: user.id,
     entries: parsed.data.entries,
+    base: parsed.data.base,
+    force: parsed.data.force,
   });
   if (!res.ok) return res;
+
+  if (res.changes.length) {
+    const tally = res.changes.reduce<Record<string, number>>((m, c) => ((m[c.to] = (m[c.to] ?? 0) + 1), m), {});
+    await auditBy(
+      user,
+      'attendance.update',
+      `${session.title}: ${Object.entries(tally)
+        .map(([k, v]) => `${v} ${k}`)
+        .join(', ')}`,
+      res.changes.map((c) => c.studentId).slice(0, 500),
+      {
+        sessionId: session.id,
+        programId: session.programId,
+        changes: res.changes.slice(0, 200).map((c) => ({ s: c.studentId, from: c.from, to: c.to })),
+        overwrote: parsed.data.force === true,
+      }
+    );
+  }
 
   revalidatePath(`/sessions/${session.id}`);
   revalidatePath('/attendance');

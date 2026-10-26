@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import { attachmentAllowed, isHttpUrl } from '@/lib/upload-policy';
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/auth-helpers';
 import {
@@ -16,7 +17,8 @@ import { notifyMany } from '@/lib/notifications';
 import { isProgramActive } from '@/lib/programs';
 import Program from '@/models/Program';
 
-const createSchema = z.object({
+const createSchema = z
+  .object({
   sessionId: z.string().min(1),
   title: z.string().min(1).max(200),
   description: z.string().max(2000).optional().default(''),
@@ -27,7 +29,9 @@ const createSchema = z.object({
   format: z.string().max(20).optional().default(''),
   size: z.number().nonnegative().optional().default(0),
   originalName: z.string().max(300).optional().default(''),
-});
+})
+  // Links: plain http(s) only. Files: our own uploads, safe types only.
+  .refine((m) => (m.kind === 'link' ? isHttpUrl(m.url) : attachmentAllowed(m)), 'That link or file is not allowed.');
 
 const updateSchema = z.object({
   id: z.string().min(1),
