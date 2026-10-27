@@ -62,6 +62,15 @@ export const AUDIT_LABELS = {
   'ai.rejected': 'AI grade rejected',
   'ai.config': 'AI grading settings changed',
   'report.export': 'Report exported',
+  'tokens.adjusted': 'Tokens given / removed',
+  'tokens.transfer': 'Tokens sent',
+  'tokens.purchase': 'Bought with tokens',
+  'premium.plan_saved': 'Premium plan saved',
+  'session.access': 'Session access changed',
+  'course.saved': 'Course saved',
+  'course.deleted': 'Course deleted',
+  'course.enrolled': 'Course enrolment',
+  'user.approved': 'Sign-up approved',
   'system.retention': 'Old records cleaned up',
   'user.create': 'User created',
   'user.update': 'User updated',
@@ -108,6 +117,8 @@ export const AUDIT_GROUPS: { label: string; prefix: string }[] = [
   { label: 'Automation', prefix: 'automation.' },
   { label: 'AI grading', prefix: 'ai.' },
   { label: 'Reports & system', prefix: 'report.|system.' },
+  { label: 'Tokens', prefix: 'tokens.' },
+  { label: 'Courses', prefix: 'course.' },
 ];
 
 export type AuditEntry = {

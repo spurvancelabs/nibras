@@ -27,6 +27,20 @@ const PATHS: Record<NavIconName | 'search' | 'plus' | 'moon' | 'sun' | 'logout' 
       <path d="M8 11V7a4 4 0 0 1 8 0v4" />
     </>
   ),
+  wallet: (
+    <>
+      <path d="M3 7a2 2 0 0 1 2-2h13v4" />
+      <path d="M3 7v11a2 2 0 0 0 2 2h15V9H5a2 2 0 0 1-2-2z" />
+      <circle cx="16" cy="14.5" r="1.2" />
+    </>
+  ),
+  courses: (
+    <>
+      <rect x="2" y="4" width="20" height="14" rx="2" />
+      <path d="m10 8.5 5 2.5-5 2.5z" />
+      <path d="M8 21h8" />
+    </>
+  ),
   crown: (
     <>
       <path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z" />

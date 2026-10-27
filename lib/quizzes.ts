@@ -663,11 +663,11 @@ export async function submitAttempt(
   user: Viewer,
   attemptId: string,
   raw: PlayerAnswer[] | null
-): Promise<{ ok: true; quizId: string; attemptId: string; percent: number; needsReview: boolean; title: string; programId: string } | Err> {
+): Promise<{ ok: true; quizId: string; attemptId: string; percent: number; needsReview: boolean; title: string; programId: string; passPercent?: number } | Err> {
   const loaded = await loadOwnAttempt(orgId, user, attemptId);
   if (!loaded) return { ok: false, error: 'Attempt not found' };
   const { attempt, quiz } = loaded;
-  const base = { quizId: String(quiz._id), attemptId: String(attempt._id), title: quiz.title, programId: String(quiz.programId) };
+  const base = { quizId: String(quiz._id), attemptId: String(attempt._id), title: quiz.title, programId: String(quiz.programId), passPercent: quiz.passPercent ?? 50 };
   if (attempt.status !== 'in_progress') return { ok: true, ...base, percent: attempt.percent, needsReview: attempt.needsReview };
 
   const late = attempt.deadlineAt && Date.now() > new Date(attempt.deadlineAt).getTime() + GRACE_MS;

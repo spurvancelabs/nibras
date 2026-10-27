@@ -35,6 +35,10 @@ const SessionSchema = new Schema(
       default: 'scheduled',
     },
     createdBy: { type: Schema.Types.ObjectId, ref: 'User' },
+    /** Who can open the meeting link, recording and materials. */
+    access: { type: String, enum: ['free', 'premium', 'tokens'], default: 'free' },
+    /** Price when access = 'tokens' (premium members get it free). */
+    tokenPrice: { type: Number, default: 0, min: 0, max: 1_000_000 },
   },
   { timestamps: true }
 );

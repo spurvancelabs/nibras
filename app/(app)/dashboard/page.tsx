@@ -6,7 +6,7 @@
 import Link from 'next/link';
 import { requireAuth } from '@/lib/auth-helpers';
 import { listPrograms } from '@/lib/programs';
-import { listUsers } from '@/lib/users';
+import { countUsersByRole } from '@/lib/users';
 import { listUpcomingForUser } from '@/lib/sessions';
 import { listAssignments } from '@/lib/assignments';
 import { listOpenQueries } from '@/lib/queries';
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
     attendanceSummary,
   ] = await Promise.all([
     listPrograms(user.orgId),
-    user.role === 'admin' ? listUsers(user.orgId) : Promise.resolve([]),
+    user.role === 'admin' ? countUsersByRole(user.orgId) : Promise.resolve({ total: 0, mentor: 0, student: 0, admin: 0 }),
     listUpcomingForUser(user.orgId, user, 5),
     listAssignments(user.orgId, user),
     listOpenQueries(user.orgId, user, 5),
@@ -176,16 +176,16 @@ export default async function DashboardPage() {
       {user.role === 'admin' && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <Stat label="Programs" value={programs.length} href="/admin/programs" icon={Icons.programs} />
-          <Stat label="Users" value={allUsers.length} href="/admin/users" icon={Icons.users} />
+          <Stat label="Users" value={allUsers.total} href="/admin/users" icon={Icons.users} />
           <Stat
             label="Mentors"
-            value={allUsers.filter((u) => u.role === 'mentor').length}
+            value={allUsers.mentor}
             href="/admin/users?role=mentor"
             icon={Icons.mentor}
           />
           <Stat
             label="Students"
-            value={allUsers.filter((u) => u.role === 'student').length}
+            value={allUsers.student}
             href="/admin/users?role=student"
             icon={Icons.student}
           />

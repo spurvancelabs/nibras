@@ -140,7 +140,7 @@ const glossyBtn: Part = {
   '--ui-primary-image': `linear-gradient(180deg, ${W(42)} 0%, ${W(10)} 48%, transparent 52%, ${K(10)} 100%)`,
 };
 const motion = (lift = -3): Part => ({
-  '--ui-enter': 'ui-rise .5s cubic-bezier(.2,.7,.2,1) both',
+  '--ui-enter': 'ui-rise .32s cubic-bezier(.2,.7,.2,1) both',
   '--ui-lift': `${lift}px`,
   '--ui-dur': '260ms',
 });

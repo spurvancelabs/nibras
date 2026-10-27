@@ -126,6 +126,24 @@ const SettingSchema = new Schema(
     auditRetentionDays: { type: Number, default: 365, min: 30, max: 3650 },
     notificationRetentionDays: { type: Number, default: 180, min: 14, max: 3650 },
 
+    registrationEnabled: { type: Boolean, default: false },
+    registrationMode: { type: String, enum: ['open', 'approval'], default: 'approval' },
+    registrationDomains: { type: String, default: '', maxlength: 500 },
+    registrationVerifyEmail: { type: Boolean, default: true },
+    registrationProgramId: { type: String, default: '', maxlength: 40 },
+    registrationMessage: { type: String, default: '', maxlength: 1000 },
+
+    tokensEnabled: { type: Boolean, default: false },
+    tokenName: { type: String, default: 'Coins', maxlength: 30 },
+    tokenIcon: { type: String, default: '🪙', maxlength: 8 },
+    tokenRules: { type: Schema.Types.Mixed, default: () => ({ ...DEFAULT_SETTINGS.tokenRules }) },
+    tokenDailyCap: { type: Number, default: 200, min: 0, max: 1000000 },
+    tokenTransfers: { type: Boolean, default: false },
+    tokenTransferDailyMax: { type: Number, default: 100, min: 0, max: 1000000 },
+    tokenLeaderboard: { type: Boolean, default: true },
+
+    featureCourses: { type: Boolean, default: true },
+
     updatedBy: { type: Schema.Types.ObjectId, ref: 'User' },
   },
   { timestamps: true, versionKey: false }

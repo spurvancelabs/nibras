@@ -20,6 +20,7 @@ import {
   NUMBER_SETTING_LIMITS,
   TWO_FACTOR_POLICIES,
   OBJECT_SETTING_KEYS,
+  NUMBER_MAP_SETTING_KEYS,
 } from '@/lib/theme-config';
 import { findUiStyle, DEFAULT_UI_STYLE_ID } from '@/lib/ui-styles';
 
@@ -36,13 +37,9 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
   for (const [k, def] of Object.entries(BOOLEAN_SETTING_DEFAULTS)) {
     bools[k] = typeof d[k] === 'boolean' ? (d[k] as boolean) : def;
   }
-  
-  // Remove internal Mongoose fields that shouldn't be sent to client
-  const { updatedBy, _id, __v, createdAt, updatedAt, ...cleanDoc } = d;
-  
   return {
     ...DEFAULT_SETTINGS,
-    ...cleanDoc,
+    ...d,
     light: mergePalette(DEFAULT_LIGHT, d.light as Partial<ThemePalette> | undefined),
     dark: mergePalette(DEFAULT_DARK, d.dark as Partial<ThemePalette> | undefined),
     logoHeight: clampLogoHeight(d.logoHeight ?? DEFAULT_SETTINGS.logoHeight),
@@ -64,6 +61,10 @@ function mergeSettings(doc: Record<string, unknown> | null): ThemeSettings {
     passwordMinLength: clampSettingNumber('passwordMinLength', d.passwordMinLength ?? DEFAULT_SETTINGS.passwordMinLength),
     ...numbers(d),
     ...objects(d),
+    ...numberMaps(d),
+    registrationMode: d.registrationMode === 'open' ? 'open' : 'approval',
+    tokenName: typeof d.tokenName === 'string' && d.tokenName.trim() ? d.tokenName : DEFAULT_SETTINGS.tokenName,
+    tokenIcon: typeof d.tokenIcon === 'string' && d.tokenIcon.trim() ? d.tokenIcon : DEFAULT_SETTINGS.tokenIcon,
     premiumName: typeof d.premiumName === 'string' && d.premiumName.trim() ? d.premiumName : DEFAULT_SETTINGS.premiumName,
   } as ThemeSettings;
 }
@@ -93,6 +94,24 @@ function objects(d: Record<string, unknown>) {
   return out;
 }
 
+/** { key: number } maps: defaults first, stored numbers on top (clamped). */
+function numberMaps(d: Record<string, unknown>) {
+  const out: Record<string, Record<string, number>> = {};
+  for (const k of NUMBER_MAP_SETTING_KEYS) {
+    const def = (DEFAULT_SETTINGS as unknown as Record<string, Record<string, number>>)[k];
+    const v = d[k];
+    const merged: Record<string, number> = { ...def };
+    if (v && typeof v === 'object' && !Array.isArray(v)) {
+      for (const [kk, vv] of Object.entries(v as Record<string, unknown>)) {
+        const n = Math.round(Number(vv));
+        if (kk.length <= 40 && Number.isFinite(n)) merged[kk] = Math.min(100000, Math.max(0, n));
+      }
+    }
+    out[k] = merged;
+  }
+  return out;
+}
+
 async function fetchSettings(): Promise<ThemeSettings> {
   // Errors are thrown (not turned into defaults) so a failed read is never
   // cached — the next request simply tries the database again.
@@ -101,7 +120,7 @@ async function fetchSettings(): Promise<ThemeSettings> {
   return mergeSettings(doc as Record<string, unknown> | null);
 }
 
-const cachedSettings = unstable_cache(fetchSettings, ['global-settings', 'v2'], {
+const cachedSettings = unstable_cache(fetchSettings, ['global-settings', 'v3'], {
   tags: ['settings'],
   revalidate: 3600,
 });
@@ -137,6 +156,8 @@ export async function updateSettings(
       clean[k] = v === true;
     } else if (k === 'logoHeight') {
       clean[k] = clampLogoHeight(v);
+    } else if ((NUMBER_MAP_SETTING_KEYS as readonly string[]).includes(k) && v && typeof v === 'object') {
+      clean[k] = v; // validated by the settings action
     } else if ((OBJECT_SETTING_KEYS as readonly string[]).includes(k) && v && typeof v === 'object') {
       clean[k] = v; // validated by the settings action
     } else if (k in NUMBER_SETTING_LIMITS) {

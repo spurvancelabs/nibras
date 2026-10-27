@@ -49,6 +49,9 @@ const SubmissionSchema = new Schema(
 );
 
 SubmissionSchema.index({ orgId: 1, assignmentId: 1, studentId: 1 }, { unique: true });
+// Grading queue (ungraded first) and learner history / inactivity checks.
+SubmissionSchema.index({ orgId: 1, assignmentId: 1, marks: 1 });
+SubmissionSchema.index({ orgId: 1, studentId: 1, submittedAt: -1 });
 
 export type SubmissionDoc = InferSchemaType<typeof SubmissionSchema> & {
   _id: string;

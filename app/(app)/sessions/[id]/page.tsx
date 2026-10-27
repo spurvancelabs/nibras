@@ -2,7 +2,9 @@
 // FILE: app/(app)/sessions/[id]/page.tsx
 // Session detail: hero header, agenda, recording, materials, attendance,
 // side info (mentor / join / ask), and an "Edit session" section.
-// Data logic unchanged.
+// UPDATED: only people in the session's program can open it (admins: all);
+// premium / token-priced sessions hide the link, recording and materials
+// from learners without access (enforced here on the server).
 // =============================================================================
 
 import Link from 'next/link';
@@ -26,6 +28,8 @@ import MaterialsPanel from './MaterialsPanel';
 import AttendancePanel from './AttendancePanel';
 import { Panel, SessionStatusBadge, Icons } from '@/components/ui';
 import { formatDayFull, formatTime, isSameLocalDay } from '@/lib/time';
+import { gateSessions } from '@/lib/session-access';
+import LockedSession from './LockedSession';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,8 +41,18 @@ export default async function SessionPage({
   const user = await requireAuth();
   const { id } = await params;
 
-  const session = await getSession(user.orgId, id);
-  if (!session) notFound();
+  const raw = await getSession(user.orgId, id);
+  if (!raw) notFound();
+  // Learners and mentors only see sessions of their own programs.
+  if (user.role !== 'admin') {
+    await db();
+    const field = user.role === 'mentor' ? 'mentors' : 'students';
+    const inProgram = await Program.exists({ _id: raw.programId, orgId: user.orgId, [field]: user.id });
+    if (!inProgram && raw.mentorId !== user.id) notFound();
+  }
+  const [session] = await gateSessions(user, [raw]);
+  const locked = session.lock.locked;
+  const st = await getSettings();
 
   const canManage =
     user.role !== 'student' &&
@@ -50,7 +64,7 @@ export default async function SessionPage({
     ));
 
   const [materials, attendanceRoster, myAttendance] = await Promise.all([
-    listMaterials(user.orgId, session.id),
+    locked ? Promise.resolve([]) : listMaterials(user.orgId, session.id),
     user.role === 'student'
       ? Promise.resolve([])
       : getSessionAttendanceRoster(
@@ -102,7 +116,7 @@ export default async function SessionPage({
   const canJoin = !!session.meetingUrl && session.status === 'scheduled';
 
   // Quizzes linked to this session (never let this break the page).
-  const quizzesOn = await getSettings().then((st) => st.featureQuizzes !== false).catch(() => false);
+  const quizzesOn = st.featureQuizzes !== false;
   const sessionQuizzes = quizzesOn ? await listQuizzes(user.orgId, user, { sessionId: session.id }).catch(() => []) : [];
 
   return (
@@ -127,6 +141,11 @@ export default async function SessionPage({
                 {session.programName}
               </span>
               <SessionStatusBadge status={session.status} />
+              {session.access !== 'free' && (
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-warning/15 text-warning text-[11px] font-semibold">
+                  {session.access === 'premium' ? `👑 ${st.premiumName || 'Premium'}` : `${st.tokenIcon} ${session.tokenPrice}`}
+                </span>
+              )}
             </div>
             <h1 className="mt-3 text-2xl sm:text-4xl font-semibold tracking-tight break-words">
               {session.title}
@@ -165,6 +184,18 @@ export default async function SessionPage({
             <Panel title="Agenda" icon={Icons.clipboard}>
               <p className="text-sm leading-relaxed whitespace-pre-wrap">{session.agenda}</p>
             </Panel>
+          )}
+
+          {locked && (
+            <LockedSession
+              sessionId={session.id}
+              reason={session.lock.reason ?? 'premium'}
+              price={session.lock.price}
+              tokenName={st.tokenName}
+              tokenIcon={st.tokenIcon}
+              balance={user.tokens ?? 0}
+              premiumName={st.premiumName || 'Premium'}
+            />
           )}
 
           {ytId && (
@@ -213,11 +244,13 @@ export default async function SessionPage({
             </Panel>
           )}
 
-          <MaterialsPanel
-            sessionId={session.id}
-            materials={materials}
-            canManage={canManage}
-          />
+          {!locked && (
+            <MaterialsPanel
+              sessionId={session.id}
+              materials={materials}
+              canManage={canManage}
+            />
+          )}
 
           <AttendancePanel
             sessionId={session.id}

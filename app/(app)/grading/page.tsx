@@ -47,9 +47,14 @@ export default async function GradingPage({ searchParams }: { searchParams: Prom
         subtitle="Grade submissions by hand or with AI suggestions. Learners only ever see the grade you approve."
         actions={
           current ? (
-            <Link href={`/grading/setup/${current.id}`} className="btn-outline h-10 px-4 text-sm">
-              Rubric &amp; AI setup
-            </Link>
+            <>
+              <Link href={`/grading/report/${current.id}`} className="btn-outline h-10 px-4 text-sm">
+                <NavIcon name="reports" size={16} /> Report
+              </Link>
+              <Link href={`/grading/setup/${current.id}`} className="btn-outline h-10 px-4 text-sm">
+                Rubric &amp; AI setup
+              </Link>
+            </>
           ) : undefined
         }
       />
@@ -74,7 +79,7 @@ export default async function GradingPage({ searchParams }: { searchParams: Prom
         <p className="flex-1">
           {ai.available ? (
             <>
-              AI suggestions are on · {ai.used}/{ai.limit} used this month{ai.model ? ` · ${ai.model}` : ''}. Every suggestion needs your review.
+              AI suggestions are on · {ai.used}/{ai.limit} used this month{ai.model ? ` · ${ai.model}` : ''}. Reads PDFs, Word, PowerPoint, Excel and code files{ai.vision ? ', plus images and scanned pages' : ''}. Every suggestion needs your review.
             </>
           ) : (
             <>
@@ -90,6 +95,9 @@ export default async function GradingPage({ searchParams }: { searchParams: Prom
       </div>
 
       <div className="flex flex-col lg:flex-row gap-2 lg:items-center">
+        {!current && assignments.length > 0 && (
+          <p className="text-xs text-muted lg:order-last lg:ml-auto">Pick an assignment to see its report and rubric.</p>
+        )}
         <form action="/grading" className="flex gap-2">
           <input type="hidden" name="show" value={show} />
           <select name="assignment" defaultValue={sp.assignment ?? ''} className="input h-10 text-sm lg:w-80" aria-label="Assignment">

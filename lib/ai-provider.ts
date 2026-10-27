@@ -8,6 +8,9 @@
 //   AI_API_KEY    the provider key (optional for a local Ollama)
 //   AI_MODEL      e.g. llama-3.3-70b-versatile
 //   AI_TIMEOUT_MS optional, default 8000 (Vercel functions stop at 10 s)
+//   AI_VISION     NEW: "on" when AI_MODEL can look at images (e.g. GPT-4o
+//                 mini, Gemini Flash, Llama 4 Scout on Groq). Then images and
+//                 scanned PDFs attached to submissions are shown to the model.
 // Set AI_PROVIDER=mock to test the whole flow without a provider.
 // =============================================================================
 
@@ -22,7 +25,8 @@ export function aiModelName(): string {
   return process.env.AI_PROVIDER === 'mock' ? 'mock' : process.env.AI_MODEL ?? '';
 }
 
-export type ChatMessage = { role: 'system' | 'user'; content: string };
+export type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
+export type ChatMessage = { role: 'system' | 'user'; content: string | ContentPart[] };
 
 export class AiError extends Error {
   constructor(
@@ -34,7 +38,7 @@ export class AiError extends Error {
 }
 
 /** One JSON-mode chat completion. Returns the raw text the model produced. */
-export async function chatJson(messages: ChatMessage[], opts: { maxTokens?: number; mock?: () => string } = {}): Promise<{ text: string; tokens: number }> {
+export async function chatJson(messages: ChatMessage[], opts: { maxTokens?: number; mock?: () => string; timeoutMs?: number } = {}): Promise<{ text: string; tokens: number }> {
   if (process.env.AI_PROVIDER === 'mock') {
     return { text: opts.mock ? opts.mock() : '{}', tokens: 0 };
   }
@@ -51,7 +55,7 @@ export async function chatJson(messages: ChatMessage[], opts: { maxTokens?: numb
     throw new AiError('AI_BASE_URL must use https');
   }
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), Number(process.env.AI_TIMEOUT_MS) || 8_000);
+  const timer = setTimeout(() => ctrl.abort(), Math.min(Number(process.env.AI_TIMEOUT_MS) || 8_000, opts.timeoutMs ?? Infinity));
   try {
     const res = await fetch(url, {
       method: 'POST',
@@ -70,6 +74,8 @@ export async function chatJson(messages: ChatMessage[], opts: { maxTokens?: numb
     });
     if (!res.ok) {
       const retry = res.status === 429 || res.status >= 500;
+      const hasImages = messages.some((m) => Array.isArray(m.content) && m.content.some((p) => p.type === 'image_url'));
+      if (hasImages && res.status === 400) throw new AiError('The AI model could not take images — check AI_VISION / AI_MODEL', false);
       throw new AiError(`AI provider answered ${res.status}`, retry);
     }
     const data = (await res.json()) as { choices?: { message?: { content?: string } }[]; usage?: { total_tokens?: number } };

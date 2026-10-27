@@ -17,6 +17,7 @@ import { THEME_PRESETS, THEME_CATEGORY_NAMES, type Tier } from '@/lib/theme-conf
 import { UI_STYLES, UI_STYLE_CATEGORIES } from '@/lib/ui-styles';
 import { DELEGABLE, LEVEL_LABEL, PERMISSIONS, type Level, type Permission } from '@/lib/rbac';
 import type { SectionProps } from './types';
+import { TOKEN_RULES } from '@/lib/tokens-core';
 
 export function LevelNote({ allowed, level }: { allowed: boolean; level: 'royal' | 'super' }) {
   if (allowed) return null;
@@ -344,6 +345,8 @@ const PERM_LABEL: Partial<Record<Permission, string>> = {
   'premium.codes': 'Create Premium codes',
   'themes.entitlements': 'Choose which themes are Premium',
   'automation.review': 'Resolve inactivity flags and reactivate accounts',
+  'courses.manage': 'Create and edit video courses',
+  'tokens.grant': 'Give or remove tokens',
 };
 
 export function RolesSection({ form, set, canSuper }: SectionProps) {
@@ -409,6 +412,124 @@ export function RolesSection({ form, set, canSuper }: SectionProps) {
             );
           })}
         </ul>
+      </SettingsCard>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Registration
+// ---------------------------------------------------------------------------
+
+export function RegistrationSection({ form, set, canSuper, programs = [], emailOn }: SectionProps & { emailOn?: boolean }) {
+  const d = !canSuper;
+  return (
+    <>
+      <LevelNote allowed={canSuper} level="super" />
+      <SettingsCard
+        title="Let people sign up"
+        description="When on, the sign-in page shows “Create an account”. New accounts are always learners — never mentors or admins."
+        icon={<NavIcon name="users" />}
+      >
+        <Toggle checked={form.registrationEnabled} onChange={(v) => !d && set('registrationEnabled', v)} disabled={d} label="Open registration" description="Off = only admins create accounts (as before)." />
+        <Segmented<'approval' | 'open'>
+          value={form.registrationMode}
+          onChange={(v) => !d && set('registrationMode', v)}
+          disabled={d}
+          ariaLabel="After sign-up"
+          options={[
+            { value: 'approval', label: 'An admin approves each sign-up' },
+            { value: 'open', label: 'Accounts work right away' },
+          ]}
+        />
+        <Toggle
+          checked={form.registrationVerifyEmail}
+          onChange={(v) => !d && set('registrationVerifyEmail', v)}
+          disabled={d}
+          label="Confirm email address first"
+          description={emailOn ? 'A one-time link is emailed before the account can be used (stops fake sign-ups).' : 'Needs email (RESEND_API_KEY) — skipped until email is set up.'}
+        />
+        <Field label="Only these email domains (optional)" hint="Comma-separated, e.g. student.uni.edu.pk, example.org. Empty = anyone.">
+          <input className="input" maxLength={500} disabled={d} value={form.registrationDomains} onChange={(e) => set('registrationDomains', e.target.value)} />
+        </Field>
+        <Field label="Add new learners to a program (optional)">
+          <select className="input" disabled={d} value={form.registrationProgramId} onChange={(e) => set('registrationProgramId', e.target.value)}>
+            <option value="">No program</option>
+            {programs.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Message on the sign-up page (optional)">
+          <textarea className="input min-h-20" maxLength={1000} disabled={d} value={form.registrationMessage} onChange={(e) => set('registrationMessage', e.target.value)} />
+        </Field>
+        <p className="text-xs text-muted">Protected by rate limits per network and per email, a hidden bot trap, and your password rules. People waiting for approval appear in Users → “Awaiting approval”.</p>
+      </SettingsCard>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tokens
+// ---------------------------------------------------------------------------
+
+export function TokensSection({ form, set, canSuper }: SectionProps) {
+  const d = !canSuper;
+  const rules = form.tokenRules ?? {};
+  return (
+    <>
+      <LevelNote allowed={canSuper} level="super" />
+      <SettingsCard
+        title="Token currency"
+        description="Reward learning with your own currency. People spend it on Premium plans, premium sessions and paid courses."
+        icon={<span aria-hidden>{form.tokenIcon}</span>}
+        actions={
+          <Link href="/admin/tokens" className="btn-outline h-9 px-3 text-sm">
+            Wallets &amp; history
+          </Link>
+        }
+      >
+        <Toggle checked={form.tokensEnabled} onChange={(v) => !d && set('tokensEnabled', v)} disabled={d} label="Turn on tokens" description="Off = hidden everywhere. Balances are kept if you switch it off and on again." />
+        <div className="grid sm:grid-cols-[1fr_120px] gap-3">
+          <Field label="Name">
+            <input className="input" maxLength={30} disabled={d} value={form.tokenName} onChange={(e) => set('tokenName', e.target.value)} placeholder="e.g. Coins, Noor, Stars" />
+          </Field>
+          <Field label="Icon">
+            <input className="input text-center text-lg" maxLength={8} disabled={d} value={form.tokenIcon} onChange={(e) => set('tokenIcon', e.target.value)} />
+          </Field>
+        </div>
+      </SettingsCard>
+      <SettingsCard title="How people earn" description="Automatic rewards. 0 = off. Each reward is given once per item, never twice." icon={<NavIcon name="award" />}>
+        <ul className="divide-y divide-border rounded-[var(--radius-md)] border border-border">
+          {TOKEN_RULES.map((r) => (
+            <li key={r.key} className="flex items-center gap-3 px-3 py-2">
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-medium">{r.label}</span>
+                <span className="block text-xs text-muted">{r.hint}</span>
+              </span>
+              <input
+                type="number"
+                min={0}
+                max={100000}
+                className="input h-9 w-24 text-right tabular-nums"
+                disabled={d}
+                value={rules[r.key] ?? 0}
+                onChange={(e) => set('tokenRules', { ...rules, [r.key]: Math.max(0, Math.min(100000, Math.round(Number(e.target.value) || 0))) })}
+                aria-label={`${r.label} reward`}
+              />
+            </li>
+          ))}
+        </ul>
+        <RangeField label="Most tokens earned per person per day" value={form.tokenDailyCap} min={0} max={2000} step={10} onChange={(v) => !d && set('tokenDailyCap', v)} hint="Stops anyone farming rewards. Admin grants don't count towards it." />
+      </SettingsCard>
+      <SettingsCard title="Sharing & leaderboard" icon={<NavIcon name="users" />}>
+        <Toggle checked={form.tokenTransfers} onChange={(v) => !d && set('tokenTransfers', v)} disabled={d} label="Let people send tokens to each other" />
+        {form.tokenTransfers && (
+          <RangeField label="Most tokens one person can send per day" value={form.tokenTransferDailyMax} min={0} max={5000} step={10} onChange={(v) => !d && set('tokenTransferDailyMax', v)} />
+        )}
+        <Toggle checked={form.tokenLeaderboard} onChange={(v) => !d && set('tokenLeaderboard', v)} disabled={d} label="Show a leaderboard" description="Top 20 learners by tokens earned this month (first names only)." />
       </SettingsCard>
     </>
   );

@@ -119,3 +119,33 @@ export async function findPeopleAction(q: string): Promise<{ id: string; name: s
     .lean()) as { _id: unknown; name: string; email: string; role: string }[];
   return rows.map((r) => ({ id: String(r._id), name: r.name, email: r.email, role: r.role }));
 }
+
+// ---------------------------------------------------------------------------
+// Plans (Super Admin: premium.policy)
+// ---------------------------------------------------------------------------
+
+export async function savePlanAction(raw: unknown): Promise<Res<{ id: string }>> {
+  const admin = await requireRole('admin');
+  if (!(await hasPermission(admin, 'premium.policy'))) return { ok: false, error: 'Only a Super Admin can change plans.' };
+  const p = z
+    .object({
+      id: id.optional(),
+      plan: z.object({
+        name: z.string().trim().min(1, 'Give the plan a name').max(60),
+        description: z.string().max(500).default(''),
+        days,
+        tokenPrice: z.number().int().min(0).max(10_000_000),
+        priceLabel: z.string().trim().max(40).default(''),
+        highlight: z.boolean().default(false),
+        active: z.boolean().default(true),
+        sort: z.number().int().min(-1000).max(1000).default(0),
+      }),
+    })
+    .safeParse(raw);
+  if (!p.success) return { ok: false, error: p.error.issues[0]?.message ?? 'Check the plan' };
+  const { savePlan } = await import('@/lib/premium-plans');
+  const plan = await savePlan(admin, p.data.plan, p.data.id);
+  revalidatePath('/admin/premium');
+  revalidatePath('/premium');
+  return { ok: true, id: plan.id };
+}

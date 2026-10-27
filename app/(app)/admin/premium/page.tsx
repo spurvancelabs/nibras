@@ -14,6 +14,8 @@ import { listPrograms } from '@/lib/programs';
 import { PageHeader, Panel, EmptyNote } from '@/components/ui';
 import NavIcon from '@/components/NavIcon';
 import { MembersPanel, CodesPanel } from './PremiumAdmin';
+import PlansPanel from './PlansPanel';
+import { listPlans } from '@/lib/premium-plans';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Premium' };
@@ -30,7 +32,7 @@ export default async function AdminPremiumPage({ searchParams }: { searchParams:
   const admin = await requirePermission('premium.view');
   const sp = await searchParams;
   const s = await getSettings();
-  const tab = sp.tab === 'codes' ? 'codes' : 'members';
+  const tab = sp.tab === 'codes' ? 'codes' : sp.tab === 'plans' ? 'plans' : 'members';
   const filter = (FILTERS.some((f) => f.id === sp.filter) ? sp.filter : 'active') as MemberFilter;
 
   if (!s.premiumEnabled) {
@@ -53,6 +55,7 @@ export default async function AdminPremiumPage({ searchParams }: { searchParams:
     );
   }
 
+  const [plans, canPolicy] = await Promise.all([tab === 'plans' ? listPlans(admin.orgId, false) : Promise.resolve([]), hasPermission(admin, 'premium.policy')]);
   const [stats, canGrant, canCodes, canEntitle, programs] = await Promise.all([
     premiumStats(admin.orgId),
     hasPermission(admin, 'premium.grant'),
@@ -109,6 +112,7 @@ export default async function AdminPremiumPage({ searchParams }: { searchParams:
         {[
           { id: 'members', label: 'Members' },
           { id: 'codes', label: 'Codes' },
+          { id: 'plans', label: 'Plans' },
         ].map((t) => (
           <Link
             key={t.id}
@@ -123,7 +127,9 @@ export default async function AdminPremiumPage({ searchParams }: { searchParams:
         ))}
       </nav>
 
-      {tab === 'members' ? (
+      {tab === 'plans' ? (
+        <PlansPanel plans={plans} canEdit={canPolicy} tokensOn={s.tokensEnabled} tokenName={s.tokenName} />
+      ) : tab === 'members' ? (
         <>
           <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Filter members">
             {FILTERS.map((f) => (

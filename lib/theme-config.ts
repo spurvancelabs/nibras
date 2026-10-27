@@ -157,6 +157,34 @@ export type ThemeSettings = {
   // Data retention (Super Admin)
   auditRetentionDays: number;
   notificationRetentionDays: number;
+
+  // Self-registration (Super Admin)
+  registrationEnabled: boolean;
+  /** 'open' = can sign in right away · 'approval' = an admin approves first */
+  registrationMode: 'open' | 'approval';
+  /** Comma-separated allowed email domains ('' = any). */
+  registrationDomains: string;
+  /** Send a link that must be clicked before the account works (needs email). */
+  registrationVerifyEmail: boolean;
+  /** Program new learners join automatically ('' = none). */
+  registrationProgramId: string;
+  registrationMessage: string;
+
+  // Token currency (Super Admin)
+  tokensEnabled: boolean;
+  tokenName: string;
+  tokenIcon: string;
+  /** Automatic rewards: event → amount (0 = off). See lib/tokens-core.ts. */
+  tokenRules: Record<string, number>;
+  /** Most tokens one person can EARN automatically per day. */
+  tokenDailyCap: number;
+  tokenTransfers: boolean;
+  /** Most tokens one person can send per day. */
+  tokenTransferDailyMax: number;
+  tokenLeaderboard: boolean;
+
+  // Video courses
+  featureCourses: boolean;
 };
 
 export type Tier = 'free' | 'premium';
@@ -458,6 +486,35 @@ export const DEFAULT_SETTINGS: ThemeSettings = {
 
   auditRetentionDays: 365,
   notificationRetentionDays: 180,
+
+  registrationEnabled: false,
+  registrationMode: 'approval',
+  registrationDomains: '',
+  registrationVerifyEmail: true,
+  registrationProgramId: '',
+  registrationMessage: '',
+
+  tokensEnabled: false,
+  tokenName: 'Coins',
+  tokenIcon: '🪙',
+  tokenRules: {
+    attendancePresent: 5,
+    attendanceLate: 2,
+    submissionOnTime: 10,
+    submissionLate: 3,
+    highGrade: 10,
+    quizPassed: 10,
+    quizPerfect: 15,
+    lessonComplete: 2,
+    courseComplete: 50,
+    weeklyStreak: 20,
+  },
+  tokenDailyCap: 200,
+  tokenTransfers: false,
+  tokenTransferDailyMax: 100,
+  tokenLeaderboard: true,
+
+  featureCourses: true,
 };
 
 /** Boolean settings and their defaults (used when reading old documents). */
@@ -477,6 +534,12 @@ export const BOOLEAN_SETTING_DEFAULTS = {
   premiumEnabled: false,
   attendanceAlerts: true,
   aiGradingEnabled: false,
+  registrationEnabled: false,
+  registrationVerifyEmail: true,
+  tokensEnabled: false,
+  tokenTransfers: false,
+  tokenLeaderboard: true,
+  featureCourses: true,
 } as const;
 
 /** Numeric settings: [min, max, default]. */
@@ -489,7 +552,12 @@ export const NUMBER_SETTING_LIMITS = {
   aiMaxChars: [1000, 50000, 12000],
   auditRetentionDays: [30, 3650, 365],
   notificationRetentionDays: [14, 3650, 180],
+  tokenDailyCap: [0, 1000000, 200],
+  tokenTransferDailyMax: [0, 1000000, 100],
 } as const;
+
+/** Settings stored as small { key: number } maps. */
+export const NUMBER_MAP_SETTING_KEYS = ['tokenRules'] as const;
 
 /** Settings stored as small JSON objects (validated by the settings action). */
 export const OBJECT_SETTING_KEYS = ['permissionOverrides', 'themeTiers', 'themeOverrides', 'styleTiers', 'styleOverrides'] as const;

@@ -6,6 +6,7 @@
 'use server';
 
 import { z } from 'zod';
+import { reward } from '@/lib/tokens';
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/auth-helpers';
 import {
@@ -178,6 +179,11 @@ export async function submitAttemptAction(raw: unknown): Promise<R<{ quizId: str
   if (!parsed.success) return { ok: false, error: 'Invalid answers' };
   const res = await submitAttempt(user.orgId, user, parsed.data.attemptId, parsed.data.answers);
   if (!res.ok) return res;
+  // Token rewards (first pass / perfect score of each quiz; never blocks).
+  if (user.role === 'student' && !res.needsReview) {
+    if (res.percent >= (res.passPercent ?? 50)) await reward(user.orgId, user.id, 'quizPassed', res.quizId, `Passed “${res.title}”`);
+    if (res.percent >= 100) await reward(user.orgId, user.id, 'quizPerfect', res.quizId, `Perfect score on “${res.title}”`);
+  }
   revalidatePath(`/quizzes/${res.quizId}`);
   revalidatePath('/quizzes');
   return { ok: true, quizId: res.quizId, attemptId: res.attemptId };

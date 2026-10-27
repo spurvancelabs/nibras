@@ -14,7 +14,10 @@
 import type { Role } from './constants';
 import { can, type Permission, type PermissionOverrides, type RbacUser } from './rbac';
 
-export type FeatureKey = 'quizzes' | 'certificates' | 'queries' | 'gradebook' | 'premium';
+export type FeatureKey = 'quizzes' | 'certificates' | 'queries' | 'gradebook' | 'premium' | 'tokens' | 'courses';
+
+/** Features that are hidden unless explicitly switched on. */
+const OPT_IN: FeatureKey[] = ['premium', 'tokens'];
 export type Features = Record<FeatureKey, boolean>;
 
 export type NavIcon =
@@ -36,7 +39,9 @@ export type NavIcon =
   | 'crown'
   | 'grading'
   | 'reports'
-  | 'automation';
+  | 'automation'
+  | 'wallet'
+  | 'courses';
 
 export type NavGroup = 'overview' | 'learning' | 'teaching' | 'community' | 'admin' | 'security' | 'account';
 
@@ -80,6 +85,7 @@ export const NAV: NavItem[] = [
   { href: '/progress', label: 'My progress', roles: ['student'], icon: 'progress', group: 'overview', keywords: 'streak achievements badges goals stats' },
 
   // learning / classes
+  { href: '/courses', label: 'Courses', roles: ALL, icon: 'courses', group: 'learning', feature: 'courses', keywords: 'video lectures recorded lessons enrol learn' },
   { href: '/programs', label: 'My programs', roles: ['mentor', 'student'], icon: 'programs', group: 'learning', keywords: 'courses syllabus' },
   { href: '/sessions', label: 'Sessions', roles: ALL, icon: 'sessions', group: 'learning', keywords: 'classes lectures schedule calendar' },
   { href: '/assignments', label: 'Assignments', roles: ALL, icon: 'assignments', group: 'learning', keywords: 'homework submissions grades' },
@@ -100,6 +106,8 @@ export const NAV: NavItem[] = [
   { href: '/admin/users', label: 'Users', roles: ['admin'], icon: 'users', group: 'admin', perm: 'users.manage', keywords: 'students mentors admins people import' },
   { href: '/admin/reports', label: 'Reports', roles: ['admin'], icon: 'reports', group: 'admin', perm: 'reports.view', keywords: 'analytics export system health workload' },
   { href: '/admin/automation', label: 'Account automation', roles: ['admin'], icon: 'automation', group: 'admin', perm: 'automation.view', keywords: 'inactive inactivity suspend flag remind' },
+  { href: '/admin/courses', label: 'Manage courses', roles: ['admin', 'mentor'], icon: 'courses', group: 'admin', perm: 'courses.manage', feature: 'courses', keywords: 'video course create lessons upload' },
+  { href: '/admin/tokens', label: 'Tokens', roles: ['admin'], icon: 'wallet', group: 'admin', perm: 'tokens.view', feature: 'tokens', keywords: 'coins currency wallets grant ledger' },
   { href: '/admin/premium', label: 'Premium', roles: ['admin'], icon: 'crown', group: 'admin', perm: 'premium.view', feature: 'premium', keywords: 'membership codes members themes' },
 
   // security & policy
@@ -107,6 +115,7 @@ export const NAV: NavItem[] = [
   { href: '/admin/settings', label: 'Settings', roles: ['admin'], icon: 'settings', group: 'security', perm: 'settings.edit', keywords: 'theme branding appearance style features policy' },
 
   // account (user menu + palette)
+  { href: '/wallet', label: 'Wallet', roles: ALL, icon: 'wallet', group: 'account', feature: 'tokens', keywords: 'tokens coins balance send leaderboard' },
   { href: '/premium', label: 'Premium', roles: ALL, icon: 'crown', group: 'account', feature: 'premium', keywords: 'upgrade membership themes deluxe' },
   { href: '/profile', label: 'Profile', roles: ALL, icon: 'user', group: 'account', keywords: 'account password name avatar' },
   { href: '/profile?tab=appearance', label: 'My appearance', roles: ALL, icon: 'palette', group: 'account', keywords: 'theme style dark light colors personal' },
@@ -121,8 +130,8 @@ export function visibleNav(user: NavUser, features?: Partial<Features>, override
       n.roles.includes(user.role) &&
       (!n.perm || can(user, n.perm, overrides)) &&
       (!n.feature || !features || features[n.feature] !== false) &&
-      // premium is opt-in: hidden unless explicitly switched on
-      (n.feature !== 'premium' || features?.premium === true)
+      // premium & tokens are opt-in: hidden unless explicitly switched on
+      (!n.feature || !OPT_IN.includes(n.feature) || features?.[n.feature] === true)
   );
 }
 
@@ -175,6 +184,10 @@ const TITLES: Record<string, string> = {
   grading: 'Grading',
   reports: 'Reports',
   automation: 'Account automation',
+  wallet: 'Wallet',
+  tokens: 'Tokens',
+  courses: 'Courses',
+  learn: 'Lesson',
 };
 
 const SUB_TITLES: Record<string, string> = {
@@ -195,6 +208,8 @@ const SUB_TITLES: Record<string, string> = {
   review: 'Review',
   ai: 'AI setup',
   history: 'History',
+  report: 'Report',
+  learn: 'Lesson',
 };
 
 /** "/admin/users/new" → { title: "Users", crumb: "New" } */

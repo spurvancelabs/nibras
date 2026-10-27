@@ -7,7 +7,7 @@ const csp = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https://fonts.gstatic.com",
   `connect-src 'self' https://api.cloudinary.com https://res.cloudinary.com${isDev ? ' ws: wss:' : ''}`,
-  'frame-src https://www.youtube.com https://www.youtube-nocookie.com',
+  'frame-src https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com',
   "media-src 'self' https: blob:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",

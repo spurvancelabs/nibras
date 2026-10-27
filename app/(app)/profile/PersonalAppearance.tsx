@@ -25,6 +25,7 @@ import { saveThemeAction, saveStyleAction } from './actions';
 import { Modal } from '@/components/feedback';
 import { themeTier, styleTier, type EntitlementPolicy } from '@/lib/entitlements';
 import Link from 'next/link';
+import { smoothThemeChange } from '@/lib/theme-shift';
 
 type Props = {
   theme: string;
@@ -103,8 +104,10 @@ export default function PersonalAppearance({
       const r = await saveThemeAction({ presetId: id });
       if (r.ok) {
         setMsg({ tone: 'success', text: p ? `“${p.name}” is now your colour theme.` : 'Using the organisation colours again.' });
-        preview('');
-        router.refresh();
+        smoothThemeChange(() => {
+          preview('');
+          router.refresh();
+        }, 800);
       } else if ('premiumRequired' in r && r.premiumRequired) {
         setThemeId(theme);
         setUpsell(p?.name ?? 'This theme');
@@ -124,8 +127,10 @@ export default function PersonalAppearance({
       const r = await saveStyleAction({ styleId: id });
       if (r.ok) {
         setMsg({ tone: 'success', text: s ? `“${s.name}” is now your design style.` : 'Using the organisation style again.' });
-        preview('');
-        router.refresh();
+        smoothThemeChange(() => {
+          preview('');
+          router.refresh();
+        }, 800);
       } else if ('premiumRequired' in r && r.premiumRequired) {
         setStyleId(style);
         setUpsell(s?.name ?? 'This style');

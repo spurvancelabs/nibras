@@ -36,6 +36,11 @@ const GradeSuggestionSchema = new Schema(
     /** e.g. injection_suspected, truncated, attachment_unread, low_confidence, empty */
     flags: { type: [String], default: [] },
     model: { type: String, default: '' },
+    /** NEW: what the AI looked at (attachments read / skipped and why). */
+    sources: {
+      type: [new Schema({ name: String, kind: String, status: String, note: String, chars: Number }, { _id: false })],
+      default: [],
+    },
     tokens: { type: Number, default: 0 },
     error: { type: String, default: '', maxlength: 300 },
     attempts: { type: Number, default: 0 },

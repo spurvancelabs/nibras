@@ -191,6 +191,31 @@ const schema = z.object({
   // Retention (Super Admin)
   auditRetentionDays: z.coerce.number().int().min(30).max(3650).optional().default(365),
   notificationRetentionDays: z.coerce.number().int().min(14).max(3650).optional().default(180),
+
+  // Self-registration (Super Admin)
+  registrationEnabled: z.boolean().optional().default(false),
+  registrationMode: z.enum(['open', 'approval']).optional().default('approval'),
+  registrationDomains: z
+    .string()
+    .max(500)
+    .optional()
+    .default('')
+    .refine((v) => v.split(',').every((d) => !d.trim() || /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(d.trim().replace(/^@/, ''))), 'Allowed domains must look like example.com'),
+  registrationVerifyEmail: z.boolean().optional().default(true),
+  registrationProgramId: z.string().max(40).optional().default(''),
+  registrationMessage: z.string().max(1000).optional().default(''),
+
+  // Token currency (Super Admin)
+  tokensEnabled: z.boolean().optional().default(false),
+  tokenName: z.string().trim().min(1).max(30).optional().default('Coins'),
+  tokenIcon: z.string().trim().min(1).max(8).optional().default('🪙'),
+  tokenRules: z.record(z.string().max(40), z.coerce.number().int().min(0).max(100000)).optional().default({}),
+  tokenDailyCap: z.coerce.number().int().min(0).max(1000000).optional().default(200),
+  tokenTransfers: z.boolean().optional().default(false),
+  tokenTransferDailyMax: z.coerce.number().int().min(0).max(1000000).optional().default(100),
+  tokenLeaderboard: z.boolean().optional().default(true),
+
+  featureCourses: z.boolean().optional().default(true),
 });
 
 /**
@@ -219,6 +244,20 @@ const KEY_PERMISSION: Record<string, Permission> = {
   aiGradingEnabled: 'ai.configure',
   aiMonthlyLimit: 'ai.configure',
   aiMaxChars: 'ai.configure',
+  registrationEnabled: 'registration.configure',
+  registrationMode: 'registration.configure',
+  registrationDomains: 'registration.configure',
+  registrationVerifyEmail: 'registration.configure',
+  registrationProgramId: 'registration.configure',
+  registrationMessage: 'registration.configure',
+  tokensEnabled: 'tokens.configure',
+  tokenName: 'tokens.configure',
+  tokenIcon: 'tokens.configure',
+  tokenRules: 'tokens.configure',
+  tokenDailyCap: 'tokens.configure',
+  tokenTransfers: 'tokens.configure',
+  tokenTransferDailyMax: 'tokens.configure',
+  tokenLeaderboard: 'tokens.configure',
 };
 
 const KEY_LABEL: Partial<Record<Permission, string>> = {
@@ -229,6 +268,8 @@ const KEY_LABEL: Partial<Record<Permission, string>> = {
   'premium.policy': 'premium policy (Super Admin)',
   'themes.entitlements': 'theme access',
   'ai.configure': 'AI grading settings (Super Admin)',
+  'registration.configure': 'registration settings (Super Admin)',
+  'tokens.configure': 'token settings (Super Admin)',
 };
 
 export type SettingsActionResult =

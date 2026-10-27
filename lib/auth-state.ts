@@ -35,13 +35,15 @@ export type AuthState = {
   superAdmin: boolean;
   /** Premium membership end (ISO) or null. */
   premiumUntil: string | null;
+  /** Token balance (cached up to 30 s). */
+  tokens: number;
 };
 
 const tag = (userId: string) => `auth-state:${userId}`;
 
 async function load(userId: string): Promise<AuthState | null> {
   await db();
-  const u = (await User.findById(userId).select('role status sessionVersion orgId name email royal themePreset uiStyle twoFactorEnabled avatar superAdmin premiumUntil').lean()) as
+  const u = (await User.findById(userId).select('role status sessionVersion orgId name email royal themePreset uiStyle twoFactorEnabled avatar superAdmin premiumUntil tokens').lean()) as
     | {
         role: Role;
         status: 'active' | 'disabled';
@@ -56,6 +58,7 @@ async function load(userId: string): Promise<AuthState | null> {
         avatar?: string;
         superAdmin?: boolean;
         premiumUntil?: Date | null;
+        tokens?: number;
       }
     | null;
   if (!u) return null;
@@ -83,8 +86,10 @@ async function load(userId: string): Promise<AuthState | null> {
     avatar: u.avatar ?? '',
     superAdmin,
     premiumUntil: u.premiumUntil ? new Date(u.premiumUntil).toISOString() : null,
+    tokens: Number(u.tokens ?? 0) || 0,
     role: u.role,
-    status: u.status === 'disabled' ? 'disabled' : 'active',
+    // Anything but 'active' (disabled, pending) counts as signed out.
+    status: u.status === 'active' ? 'active' : 'disabled',
     sessionVersion: Number(u.sessionVersion ?? 0) || 0,
     orgId: String(u.orgId),
     name: u.name ?? '',

@@ -46,7 +46,7 @@ export type UserListItem = {
   name: string;
   email: string;
   role: Role;
-  status: 'active' | 'disabled';
+  status: 'active' | 'disabled' | 'pending';
   avatar: string;
   programIds: string[];
   createdAt: string;
@@ -82,7 +82,7 @@ function toItem(u: any): UserListItem {
     name: u.name,
     email: u.email,
     role: u.role as Role,
-    status: u.status === 'disabled' ? 'disabled' : 'active',
+    status: u.status === 'disabled' ? 'disabled' : u.status === 'pending' ? 'pending' : 'active',
     avatar: u.avatar ?? '',
     programIds: (u.programIds ?? []).map(String),
     createdAt: new Date(u.createdAt).toISOString(),
@@ -163,7 +163,7 @@ async function withTransaction<T>(fn: (session?: ClientSession) => Promise<T>): 
 export type UserFilters = {
   role?: Role;
   search?: string;
-  status?: 'active' | 'disabled';
+  status?: 'active' | 'disabled' | 'pending';
   programId?: string;
   memberId?: 'missing' | 'set';
   signin?: 'never' | 'ever';
@@ -318,6 +318,15 @@ export async function getUserById(orgId: string, id: string): Promise<UserDetail
     suspendedBy: u.suspendedBy ?? '',
     suspendedAt: u.suspendedAt ? new Date(u.suspendedAt).toISOString() : null,
   };
+}
+
+/** Fast counts for dashboards (no documents loaded). */
+export async function countUsersByRole(orgId: string): Promise<{ total: number; admin: number; mentor: number; student: number }> {
+  await db();
+  const [admin, mentor, student] = await Promise.all(
+    (['admin', 'mentor', 'student'] as const).map((role) => User.countDocuments({ orgId, role }))
+  );
+  return { total: admin + mentor + student, admin, mentor, student };
 }
 
 /** Names/emails for a set of ids (used by the audit log). */
@@ -647,7 +656,20 @@ export async function bulkUpdateUsers(
   if (!Object.keys(set).length || target.length === 0) {
     return { ok: true, updated: 0, skippedSelf, targetIds: [] };
   }
+  // People approved from "awaiting approval" get a welcome notice.
+  const approved =
+    patch.status === 'active'
+      ? ((await User.find({ orgId, _id: { $in: target }, status: 'pending' }).select('_id').lean()) as { _id: unknown }[]).map((u) => String(u._id))
+      : [];
   const res = await User.updateMany({ orgId, _id: { $in: target } }, { $set: set });
+  if (approved.length) {
+    try {
+      const { notifyMany } = await import('./notifications');
+      await notifyMany({ orgId, userIds: approved, type: 'account.reactivated', title: 'Your account was approved', body: 'Welcome! You can sign in now.', link: '/dashboard', email: true });
+    } catch (e) {
+      console.warn('[users] approval notice failed', e);
+    }
+  }
   if (patch.role) await syncProgramRoleField(orgId, target);
   await invalidateAuthState(target);
   await invalidateOrgRoyal(orgId);

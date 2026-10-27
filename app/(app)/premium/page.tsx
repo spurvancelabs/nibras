@@ -19,6 +19,8 @@ import { formatDate, formatDateTime } from '@/lib/time';
 import { PageHeader, Panel, Badge, EmptyNote } from '@/components/ui';
 import NavIcon from '@/components/NavIcon';
 import RedeemForm from './RedeemForm';
+import PlanCards from './PlanCards';
+import { listPlans } from '@/lib/premium-plans';
 import Character from '@/components/Character';
 import { effectivePreset, characterFor } from '@/lib/appearance';
 
@@ -66,7 +68,7 @@ export default async function PremiumPage() {
   const active = isPremiumActive(user.premiumUntil);
   const access = hasPremiumAccess(user, policy);
   const left = daysLeft(user.premiumUntil);
-  const history = await membershipHistory(user.orgId, user.id).catch(() => []);
+  const [history, plans] = await Promise.all([membershipHistory(user.orgId, user.id).catch(() => []), listPlans(user.orgId).catch(() => [])]);
 
   const premiumThemes = THEME_PRESETS.filter((p) => themeTier(p, policy) === 'premium');
   const premiumStyles = UI_STYLES.filter((st) => styleTier(st, policy) === 'premium');
@@ -114,6 +116,19 @@ export default async function PremiumPage() {
 
       <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(0,380px)] gap-6 items-start">
         <div className="space-y-6 min-w-0">
+          {plans.length > 0 && (
+            <Panel title="Plans" icon={<NavIcon name="crown" size={16} />}>
+              <PlanCards
+                plans={plans}
+                tokensOn={s.tokensEnabled}
+                tokenName={s.tokenName}
+                tokenIcon={s.tokenIcon}
+                balance={user.tokens ?? 0}
+                canBuy={user.role !== 'admin'}
+              />
+            </Panel>
+          )}
+
           <Panel title="What's included" icon={<NavIcon name="sparkle" size={16} />}>
             <ul className="grid sm:grid-cols-2 gap-3 text-sm">
               <li className="flex gap-2.5">

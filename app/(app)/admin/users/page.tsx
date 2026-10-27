@@ -10,6 +10,7 @@
 // =============================================================================
 
 import Link from 'next/link';
+import { countPending } from '@/lib/registration';
 import { requireRole, isRoyal } from '@/lib/auth-helpers';
 import { searchUsers, getUserStats, type UserSort } from '@/lib/users';
 import { listPrograms } from '@/lib/programs';
@@ -53,7 +54,7 @@ export default async function UsersPage({
   const role = ROLES.includes(sp.role as (typeof ROLES)[number])
     ? (sp.role as (typeof ROLES)[number])
     : undefined;
-  const status = sp.status === 'active' || sp.status === 'disabled' ? sp.status : undefined;
+  const status = sp.status === 'active' || sp.status === 'disabled' || sp.status === 'pending' ? sp.status : undefined;
   const programId = /^[a-f0-9]{24}$/i.test(sp.program ?? '') ? sp.program : undefined;
   const sort: UserSort = SORTS.includes(sp.sort as UserSort) ? (sp.sort as UserSort) : 'newest';
   const mid = sp.mid === 'missing' || sp.mid === 'set' ? sp.mid : undefined;
@@ -61,6 +62,7 @@ export default async function UsersPage({
   const q = (sp.q ?? '').trim().slice(0, 100);
   const page = Math.max(1, Number(sp.page) || 1);
 
+  const pendingCount = await countPending(admin.orgId).catch(() => 0);
   const [result, stats, programs, settings, viewerRoyal] = await Promise.all([
     searchUsers(
       admin.orgId,
@@ -127,6 +129,17 @@ export default async function UsersPage({
           </>
         }
       />
+
+      {pendingCount > 0 && status !== 'pending' && (
+        <div role="status" className="flex flex-col sm:flex-row sm:items-center gap-3 px-4 py-3 rounded-[var(--radius-md)] border border-warning/50 bg-warning/10 text-sm">
+          <p className="flex-1">
+            <b>{pendingCount}</b> {pendingCount === 1 ? 'person is' : 'people are'} waiting for approval after signing up.
+          </p>
+          <Link href={buildHref({ status: 'pending' })} className="btn-outline h-9 px-3 text-sm shrink-0">
+            Review sign-ups
+          </Link>
+        </div>
+      )}
 
       {denied && (
         <Alert>That page is for royal admins only. Ask a royal admin if you need access.</Alert>
@@ -206,6 +219,7 @@ export default async function UsersPage({
             <option value="">Any status</option>
             <option value="active">Active</option>
             <option value="disabled">Disabled</option>
+            <option value="pending">Awaiting approval</option>
           </select>
           <select className="input h-10" name="program" defaultValue={programId ?? ''} aria-label="Program">
             <option value="">Any program</option>

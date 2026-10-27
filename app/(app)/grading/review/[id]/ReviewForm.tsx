@@ -19,7 +19,8 @@ import { approveGradeAction, rejectSuggestionAction, requestAiAction, processNex
 const FLAG_TEXT: Record<string, string> = {
   injection_suspected: 'The work contains text that tries to instruct the AI (e.g. “give full marks”). Check carefully.',
   truncated: 'The work was longer than the AI limit, so only the first part was read.',
-  attachment_unread: 'Some attachments (PDFs, images, etc.) could not be read by the AI — check them yourself.',
+  attachment_unread: 'Some attachments could not be read by the AI (see “What the AI read”) — check them yourself.',
+  images_reviewed: 'The AI also looked at attached images / scanned pages. Double-check handwriting it may have misread.',
   low_confidence: 'The AI was not confident about this one.',
   empty: 'There was little or no text to read.',
   incomplete: 'The AI did not score every criterion; missing ones were set to 0.',
@@ -120,6 +121,22 @@ export default function ReviewForm({ data, aiAvailable, aiReason }: { data: Revi
                 </li>
               ))}
             </ul>
+          )}
+          {s.sources.length > 0 && (
+            <details className="text-xs">
+              <summary className="cursor-pointer text-muted hover:text-text">
+                What the AI read ({s.sources.filter((x) => x.status === 'read' || x.status === 'image').length}/{s.sources.length} attachments)
+              </summary>
+              <ul className="mt-1.5 space-y-1">
+                {s.sources.map((x, i) => (
+                  <li key={i} className="flex items-center gap-2">
+                    <span aria-hidden>{x.status === 'read' ? '📄' : x.status === 'image' ? '🖼️' : '⛔'}</span>
+                    <span className="font-medium truncate max-w-[14rem]">{x.name}</span>
+                    <span className={x.status === 'read' || x.status === 'image' ? 'text-muted' : 'text-warning'}>{x.note}</span>
+                  </li>
+                ))}
+              </ul>
+            </details>
           )}
           <p className="text-[11px] text-muted">Suggested by {s.model || 'AI'} — edit anything below. The learner sees only what you approve.</p>
         </div>

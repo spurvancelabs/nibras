@@ -11,6 +11,7 @@
 import type { Metadata } from 'next';
 import { requirePermission, isRoyal, hasPermission } from '@/lib/auth-helpers';
 import { aiConfigured } from '@/lib/ai-provider';
+import { listPrograms } from '@/lib/programs';
 import { getSettings } from '@/lib/settings';
 import { twoFactorStats } from '@/lib/two-factor';
 import SettingsShell from './SettingsShell';
@@ -20,13 +21,14 @@ export const metadata: Metadata = { title: 'Settings' };
 
 export default async function AdminSettingsPage({ searchParams }: { searchParams: Promise<{ section?: string }> }) {
   const admin = await requirePermission('settings.edit');
-  const [settings, royal, sp, stats, canSuper, canEntitle] = await Promise.all([
+  const [settings, royal, sp, stats, canSuper, canEntitle, programs] = await Promise.all([
     getSettings(),
     isRoyal(admin),
     searchParams,
     twoFactorStats(admin.orgId).catch(() => []),
     hasPermission(admin, 'premium.policy'),
     hasPermission(admin, 'themes.entitlements'),
+    listPrograms(admin.orgId).catch(() => []),
   ]);
 
   return (
@@ -36,6 +38,8 @@ export default async function AdminSettingsPage({ searchParams }: { searchParams
       canSuper={canSuper && royal}
       canEntitle={canEntitle}
       aiConfigured={aiConfigured()}
+      emailOn={!!process.env.RESEND_API_KEY}
+      programs={programs.filter((p) => p.status !== 'archived').map((p) => ({ id: p.id, name: p.name }))}
       initialSection={sp.section}
       twoFactorStats={stats}
       viewerHas2fa={admin.twoFactorEnabled === true}

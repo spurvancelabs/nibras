@@ -1,5 +1,77 @@
 # Nibras LMS — upgrade notes
 
+## Update 4 — speed, video courses, tokens, premium content, registration & AI that reads files (October 2026)
+
+Apply on top of Update 3. **No database migration is needed.** New collections and indexes are created automatically on first start. Every new feature starts in a safe state:
+
+- **Registration is off.** Only existing accounts can sign in, exactly as today.
+- **Tokens are off.** No balances or wallet appear until a Super Admin turns them on.
+- **Video courses are on, but there are none yet.** Learners see an empty "Courses" page until you publish one. You can switch courses off in Settings → Features.
+- Every existing session stays **free**.
+- AI grading keeps working as before. It now also reads attachments.
+
+Nobody is signed out by deploying.
+
+### How to apply
+
+1. Copy every file from this package into your project at the same path (overwrite). `CHANGES.md` lists each file.
+2. **New packages:** `unpdf` (reads PDFs) and `fflate` (reads Word, PowerPoint and Excel files). Both are already in `package.json` and `pnpm-lock.yaml`, which are in the package. Run `pnpm install`, then commit **both** files, or Vercel's install step will fail.
+3. Deploy to a **Vercel preview** first and run the checklist below.
+
+### Environment variables (new)
+
+| Variable | Needed for | Notes |
+|---|---|---|
+| `AI_VISION` | Optional: AI looks at images and scanned PDFs | Set `on` **only if** your `AI_MODEL` accepts images (e.g. `gpt-4o-mini`, Gemini Flash, `meta-llama/llama-4-scout-17b-16e-instruct` on Groq). Leave it unset otherwise. Text files, PDFs, Word, PowerPoint, Excel, notebooks and code are read without it. |
+| `RESEND_API_KEY` | Optional: confirm-your-email step during registration | Already used for password reset. Without it, new sign-ups skip email confirmation and go straight to admin approval (or are active, in "open" mode). |
+
+Cloudinary (already configured) is used for course videos, cover images and lesson resources. On Cloudinary's free plan, a single video can be up to 100 MB. For longer lectures, upload them to YouTube (unlisted) or Vimeo and paste the link.
+
+### First steps after deploying
+
+1. **Settings → Registration** (Super Admin): turn on self-registration and choose:
+   - **Mode:** "Needs approval" is recommended. New accounts wait in Users → *Awaiting approval*.
+   - Optional email domains (e.g. `school.edu.pk`), a program new learners join automatically, and a welcome message.
+   - People who register are always **learners**. Nobody can register as a mentor or admin.
+2. **Settings → Tokens** (Super Admin): turn tokens on and set:
+   - the currency name and icon (default "Coins 🪙")
+   - how many tokens each action earns (attendance, on-time work, quizzes, lessons, courses, weekly streak)
+   - the daily earning cap
+   - whether people can send tokens to each other (off by default), and the daily send limit
+   - whether the leaderboard is shown
+   Admins grant or remove tokens in **Admin → Tokens**. Large grants ask for your password.
+3. **Admin → Premium → Plans:** create plans that learners buy with tokens (e.g. "30 days for 500 Coins").
+4. **Sessions:** in a session's form, "Who can join" sets it to Free, Premium-only, or a one-time token price. For locked learners, the meeting link, recording and materials are removed on the server.
+5. **Admin → Manage courses → New course:**
+   - add sections and lessons (upload a video or paste a YouTube/Vimeo link)
+   - write explanations and attach resources
+   - mark preview lessons
+   - choose Free / Premium / token price and the programs that can see it
+   - publish
+   Mentors can create courses too, if you delegate `courses.manage` to them in Settings → Roles.
+
+### Checklist on the preview deployment
+
+- [ ] Existing learner, mentor and admin accounts sign in. Their pages look and work as before. Switching dark/light mode fades smoothly.
+- [ ] Registration off: the login page shows no "Create an account" link, and `/register` says sign-up is closed.
+- [ ] Registration on (approval): register a test learner. They can't sign in until an admin presses **Activate / approve** in Users.
+- [ ] Tokens on: complete a quiz or mark attendance, and the wallet balance in the top bar goes up. Admin → Tokens shows the ledger.
+- [ ] Create a free course with two lessons and publish it. As a learner: enrol, watch, mark lessons complete, and finish (+ course tokens).
+- [ ] Token-priced course: a learner without enough tokens can't enrol. A Premium member enrols free.
+- [ ] Premium session: a free learner sees the lock panel and no meeting link.
+- [ ] Grading: ask the AI for a suggestion on a submission with a PDF or Word attachment. "What the AI read" lists the file.
+- [ ] Grading → pick an assignment → **Report** shows the numbers, and **Download CSV** works.
+
+### Rollback
+
+Redeploy the previous deployment in Vercel. The new collections (courses, enrolments, token ledger, plans, unlocks, email verifications) are ignored by the old version.
+
+Two things behave differently after a rollback:
+- Accounts still waiting for approval keep status `pending`, and the old version treats them as unable to sign in.
+- Premium/token sessions show as normal free sessions again.
+
+---
+
 ## Update 3 — premium, automation, AI grading & navigation (October 2026)
 
 Apply on top of Update 2. **No database migration is needed.** Every new setting starts in a safe "off" or "same as before" state:

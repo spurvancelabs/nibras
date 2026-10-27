@@ -74,6 +74,7 @@ declare module 'next-auth' {
       superAdmin?: boolean;
       /** premium membership end (ISO) or null */
       premiumUntil?: string | null;
+      tokens?: number;
       /** sign-in time (ms) */
       at?: number;
     } & DefaultSession['user'];
@@ -197,6 +198,7 @@ export const authOptions: NextAuthOptions = {
 
             // Correct password but the account is disabled/paused: say so
             // (safe — only revealed to someone who knows the password).
+            if (user.status === 'pending') throw new Error('ACCOUNT_PENDING');
             if (user.status !== 'active') throw new Error('ACCOUNT_DISABLED');
 
             // ---- two-step sign-in ----
@@ -294,7 +296,7 @@ export const authOptions: NextAuthOptions = {
           }
         } catch (error) {
           // Two-step messages go back to the login form as-is.
-          if (error instanceof Error && (error.message === TWO_FACTOR_REQUIRED || error.message === TWO_FACTOR_INVALID || error.message === 'ACCOUNT_DISABLED')) {
+          if (error instanceof Error && (error.message === TWO_FACTOR_REQUIRED || error.message === TWO_FACTOR_INVALID || error.message === 'ACCOUNT_DISABLED' || error.message === 'ACCOUNT_PENDING')) {
             throw error;
           }
           console.error('Auth error:', error);
@@ -399,6 +401,7 @@ export async function auth() {
   session.user.avatar = state.avatar;
   session.user.superAdmin = state.superAdmin;
   session.user.premiumUntil = state.premiumUntil;
+  session.user.tokens = state.tokens;
   return session;
 }
 

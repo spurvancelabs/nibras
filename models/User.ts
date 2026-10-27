@@ -30,7 +30,8 @@ const UserSchema = new Schema(
     avatar: { type: String, default: '' },
     status: {
       type: String,
-      enum: ['active', 'disabled'],
+      // 'pending' = signed up and waiting for email verification / approval
+      enum: ['active', 'disabled', 'pending'],
       default: 'active',
     },
     programIds: [{ type: Schema.Types.ObjectId, ref: 'Program' }],
@@ -90,6 +91,15 @@ const UserSchema = new Schema(
     // --- Notification preferences -------------------------------------------
     /** Receive emails for notifications (in-app notifications always on). */
     emailNotifications: { type: Boolean, default: true },
+
+    // --- Self-registration ---------------------------------------------------
+    /** 'self' when the person signed up on /register. */
+    registrationSource: { type: String, default: '', maxlength: 20 },
+    emailVerifiedAt: { type: Date, default: null },
+
+    // --- Token wallet (lib/tokens.ts) -----------------------------------------
+    /** Current balance. Only ever changed together with a TokenTransaction. */
+    tokens: { type: Number, default: 0 },
   },
   { timestamps: true }
 );

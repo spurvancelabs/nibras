@@ -19,6 +19,8 @@ export type SectionProps = {
   canSuper: boolean;
   /** May edit which themes are premium (Royal by default; delegable). */
   canEntitle: boolean;
+  /** Programs (for "join this program after sign-up"). */
+  programs?: { id: string; name: string }[];
 };
 
 export type AppearanceProps = SectionProps & {

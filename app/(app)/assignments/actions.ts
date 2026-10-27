@@ -1,6 +1,7 @@
 'use server';
 
 import { z } from 'zod';
+import { reward } from '@/lib/tokens';
 import { attachmentAllowed } from '@/lib/upload-policy';
 import { revalidatePath } from 'next/cache';
 import { requireAuth } from '@/lib/auth-helpers';
@@ -222,6 +223,9 @@ export async function submitAssignmentAction(raw: unknown): Promise<ActionResult
     attachments: parsed.data.attachments,
   });
   if (!res.ok) return res;
+  // Token reward, once per assignment (on time or late).
+  const onTime = Date.now() <= new Date(assignment.dueAt).getTime();
+  await reward(user.orgId, user.id, onTime ? 'submissionOnTime' : 'submissionLate', assignment.id, `${onTime ? 'On-time' : 'Late'} submission: ${assignment.title}`, 'submission');
 
   // Notify mentors of the program
   const program = await Program.findOne({
@@ -289,6 +293,10 @@ export async function gradeSubmissionAction(raw: unknown): Promise<ActionResult>
     assignmentId: assignment.id,
     submissionId: parsed.data.submissionId,
   });
+
+  if (assignment.maxMarks > 0 && parsed.data.marks / assignment.maxMarks >= 0.9) {
+    await reward(user.orgId, temp.studentId, 'highGrade', assignment.id, `Great grade on ${assignment.title}`);
+  }
 
   // Notify the student
   await notify({

@@ -17,7 +17,12 @@ import Sidebar from './Sidebar';
 import NotificationBell from './NotificationBell';
 import UserMenu from './UserMenu';
 import MobileNav from './MobileNav';
-import CommandPalette, { openCommandPalette } from './CommandPalette';
+import dynamic from 'next/dynamic';
+import { openCommandPalette, OPEN_PALETTE_EVENT } from './palette-events';
+
+// Loaded on first use (Ctrl/⌘ K, "/", or the search buttons) — keeps the
+// first page load small.
+const CommandPalette = dynamic(() => import('./CommandPalette'), { ssr: false });
 import NavIcon from './NavIcon';
 import { pageTitle, type Features } from '@/lib/nav';
 import type { Role } from '@/lib/constants';
@@ -29,6 +34,8 @@ type Props = {
   user: { name?: string | null; email?: string | null; role: Role; royal?: boolean; superAdmin?: boolean; premium?: boolean; avatar?: string };
   /** Super-Admin permission delegation (menu visibility only). */
   overrides?: PermissionOverrides | null;
+  /** Token balance pill in the top bar (when tokens are on). */
+  wallet?: { balance: number; icon: string; name: string } | null;
   /** Notice shown once when a personal premium theme was paused. */
   notice?: { text: string; href: string; cta: string } | null;
   orgName: string;
@@ -98,10 +105,30 @@ function Announcement({ a }: { a: NonNullable<Props['announcement']> }) {
 
 const RAIL_KEY = 'lms-sidebar-rail';
 
-export default function AppShell({ user, orgName, logo, features, overrides, notice, announcement, maintenance, needs2fa, children }: Props) {
+export default function AppShell({ user, orgName, logo, features, overrides, wallet, notice, announcement, maintenance, needs2fa, children }: Props) {
   const pathname = usePathname() ?? '';
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [paletteLoaded, setPaletteLoaded] = useState(false);
+
+  // Until the palette is loaded, a tiny listener waits for the first request.
+  useEffect(() => {
+    if (paletteLoaded) return;
+    const load = () => setPaletteLoaded(true);
+    const onKey = (e: KeyboardEvent) => {
+      const typing = (e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"]');
+      if (((e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey)) || (e.key === '/' && !typing)) {
+        e.preventDefault();
+        load();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    window.addEventListener(OPEN_PALETTE_EVENT, load);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener(OPEN_PALETTE_EVENT, load);
+    };
+  }, [paletteLoaded]);
   const { title, crumb } = pageTitle(pathname);
 
   // Remember the desktop rail choice (per browser).
@@ -234,6 +261,17 @@ export default function AppShell({ user, orgName, logo, features, overrides, not
             >
               <NavIcon name="search" size={19} />
             </button>
+            {wallet && (
+              <Link
+                href="/wallet"
+                title={`${wallet.balance} ${wallet.name}`}
+                className="hidden sm:inline-flex items-center gap-1.5 h-9 px-3 rounded-full border border-border bg-bg/60 text-sm font-semibold tabular-nums hover:bg-hero transition-colors"
+              >
+                <span aria-hidden>{wallet.icon}</span>
+                {wallet.balance.toLocaleString()}
+                <span className="sr-only">{wallet.name}</span>
+              </Link>
+            )}
             <NotificationBell />
             <span aria-hidden className="hidden sm:block w-px h-8 bg-border mx-1" />
             <UserMenu
@@ -286,7 +324,9 @@ export default function AppShell({ user, orgName, logo, features, overrides, not
       </div>
 
       <MobileNav role={user.role} royal={royal} superAdmin={superAdmin} features={features} onMenu={() => setMobileOpen(true)} />
-      <CommandPalette role={user.role} royal={royal} superAdmin={superAdmin} features={features} overrides={overrides} />
+      {paletteLoaded && (
+        <CommandPalette role={user.role} royal={royal} superAdmin={superAdmin} features={features} overrides={overrides} openOnMount />
+      )}
     </div>
   );
 }

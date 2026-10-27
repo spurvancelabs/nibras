@@ -29,7 +29,7 @@ export type UserRow = {
   name: string;
   email: string;
   role: Role;
-  status: 'active' | 'disabled';
+  status: 'active' | 'disabled' | 'pending';
   avatar: string;
   programIds: string[];
   programNames: string[];
@@ -281,7 +281,7 @@ export default function UsersTable({
         <div className="flex flex-wrap items-center gap-2">
           {selected.size > 0 && !confirmDelete && (
             <>
-              <BulkButton onClick={() => bulk({ status: 'active' })} disabled={pending}>Activate</BulkButton>
+              <BulkButton onClick={() => bulk({ status: 'active' })} disabled={pending}>Activate / approve</BulkButton>
               <BulkButton onClick={() => bulk({ status: 'disabled' })} disabled={pending}>Disable</BulkButton>
               <div className="flex items-center gap-1">
                 <select
@@ -430,6 +430,8 @@ export default function UsersTable({
                     <td className="px-4 py-3">
                       {u.status === 'active' ? (
                         <Badge tone="success" dot>active</Badge>
+                      ) : u.status === 'pending' ? (
+                        <Badge tone="warning" dot>awaiting approval</Badge>
                       ) : (
                         <Badge tone="danger" dot>disabled</Badge>
                       )}
@@ -485,6 +487,8 @@ export default function UsersTable({
                   <Badge tone={ROLE_TONE[u.role]}>{u.role}</Badge>
                   {u.status === 'active' ? (
                     <Badge tone="success" dot>active</Badge>
+                  ) : u.status === 'pending' ? (
+                    <Badge tone="warning" dot>awaiting approval</Badge>
                   ) : (
                     <Badge tone="danger" dot>disabled</Badge>
                   )}

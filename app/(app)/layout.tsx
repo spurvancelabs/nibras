@@ -98,6 +98,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           avatar: user.avatar,
         }}
         overrides={s.permissionOverrides as PermissionOverrides}
+        wallet={s.tokensEnabled ? { balance: user.tokens ?? 0, icon: s.tokenIcon, name: s.tokenName } : null}
         notice={
           paused && !hasPremiumAccess(user, policy)
             ? {
@@ -117,6 +118,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           queries: s.featureQueries,
           gradebook: s.featureGradebook,
           premium: s.premiumEnabled === true,
+          tokens: s.tokensEnabled === true,
+          courses: s.featureCourses !== false,
         }}
         announcement={announcement}
         maintenance={s.maintenanceMode && user.role === 'admin'}

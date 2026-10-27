@@ -38,6 +38,8 @@ const upsertSchema = z
     meetingUrl: urlOrEmpty,
     recordingUrl: urlOrEmpty,
     status: z.enum(SESSION_STATUSES).optional(),
+    access: z.enum(['free', 'premium', 'tokens']).optional().default('free'),
+    tokenPrice: z.coerce.number().int().min(0).max(1_000_000).optional().default(0),
   })
   .refine((v) => new Date(v.endsAt) > new Date(v.startsAt), {
     message: 'End time must be after start time',
@@ -107,8 +109,13 @@ export async function saveSessionAction(raw: unknown): Promise<ActionResult> {
       meetingUrl: data.meetingUrl,
       recordingUrl: data.recordingUrl,
       status: data.status,
+      access: data.access,
+      tokenPrice: data.access === 'tokens' ? data.tokenPrice : 0,
     });
     if (!res.ok) return res;
+    if (existing.access !== data.access || (data.access === 'tokens' && existing.tokenPrice !== data.tokenPrice)) {
+      await auditBy(user, 'session.access', `${data.title}: ${data.access}${data.access === 'tokens' ? ` (${data.tokenPrice})` : ''}`, [], { sessionId: data.id });
+    }
 
     revalidatePath('/sessions');
     revalidatePath(`/sessions/${data.id}`);
@@ -142,6 +149,8 @@ export async function saveSessionAction(raw: unknown): Promise<ActionResult> {
     recordingUrl: data.recordingUrl,
     status: data.status,
     createdBy: user.id,
+    access: data.access,
+    tokenPrice: data.access === 'tokens' ? data.tokenPrice : 0,
   });
   if (!res.ok) return res;
 
@@ -175,4 +184,23 @@ export async function deleteSessionAction(raw: unknown): Promise<ActionResult> {
   revalidatePath('/sessions');
   revalidatePath('/dashboard');
   return { ok: true };
+}
+// ---------------------------------------------------------------------------
+// Unlock a token-priced session (learners)
+// ---------------------------------------------------------------------------
+
+export async function unlockSessionAction(raw: unknown): Promise<ActionResult> {
+  const user = await requireAuth();
+  const parsed = z.object({ id: z.string().refine((v) => Types.ObjectId.isValid(v)) }).safeParse(raw);
+  if (!parsed.success) return { ok: false, error: 'Invalid session' };
+  const session = await getSession(user.orgId, parsed.data.id);
+  if (!session) return { ok: false, error: 'Session not found' };
+  if (user.role === 'student') {
+    const inProgram = await Program.exists({ _id: session.programId, orgId: user.orgId, students: user.id });
+    if (!inProgram) return { ok: false, error: 'This session is not in your programs.' };
+  }
+  const { unlockSession } = await import('@/lib/session-access');
+  const r = await unlockSession(user, session);
+  if (r.ok) revalidatePath(`/sessions/${session.id}`);
+  return r;
 }

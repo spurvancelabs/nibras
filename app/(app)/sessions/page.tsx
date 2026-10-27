@@ -6,6 +6,7 @@
 import Link from 'next/link';
 import { requireAuth } from '@/lib/auth-helpers';
 import { listSessionsForUser } from '@/lib/sessions';
+import { gateSessions } from '@/lib/session-access';
 import Avatar from '@/components/Avatar';
 import {
   PageHeader,
@@ -33,7 +34,8 @@ function fmtTimeRange(startIso: string, endIso?: string) {
 
 export default async function SessionsPage() {
   const user = await requireAuth();
-  const sessions = await listSessionsForUser(user.orgId, user);
+  // Links/recordings are stripped from sessions the learner can't open.
+  const sessions = await gateSessions(user, await listSessionsForUser(user.orgId, user));
 
   const now = Date.now();
   const upcoming = sessions
@@ -168,6 +170,12 @@ function PastRow({ s }: { s: SessionRow }) {
         <Avatar name={s.mentorName} src={s.mentorAvatar} size={24} />
         <span className="text-xs text-muted max-w-[8rem] truncate">{s.mentorName}</span>
       </div>
+      {s.access !== 'free' && (
+        <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-warning/15 text-warning text-[11px] font-semibold" title={s.access === 'premium' ? 'Premium session' : `${s.tokenPrice} tokens`}>
+          {s.access === 'premium' ? '👑' : '🪙'}
+          <span className="hidden sm:inline">{s.access === 'premium' ? 'Premium' : s.tokenPrice}</span>
+        </span>
+      )}
       {s.recordingUrl && (
         <span className="shrink-0 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-hero text-[11px] font-medium">
           {Icons.video}

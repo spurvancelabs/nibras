@@ -25,6 +25,11 @@ import { attendanceOverview } from './attendance-reports';
 import { automationDaily } from './automation';
 import { notify } from './notifications';
 import { audit } from './audit';
+import { reward } from './tokens';
+import { weekKey } from './progress-core';
+import Submission from '@/models/Submission';
+import Attendance from '@/models/Attendance';
+import QuizAttempt from '@/models/QuizAttempt';
 
 const oid = (id: string) => new Types.ObjectId(id);
 const DAY = 86_400_000;
@@ -106,7 +111,36 @@ export async function retentionCleanup(orgId: string): Promise<Record<string, nu
   return counts;
 }
 
-type JobName = 'premium' | 'attendance' | 'automation' | 'retention';
+/** Mondays: reward learners active last week AND the week before (once per week). */
+export async function streakRewards(orgId: string, deadline: number): Promise<Record<string, number>> {
+  const s = await getSettings();
+  if (!s.tokensEnabled || !(s.tokenRules?.weeklyStreak > 0)) return { skipped: 1 };
+  if (new Date().getUTCDay() !== 1) return { skipped: 1 };
+  const org = oid(orgId);
+  const now = Date.now();
+  const w1 = new Date(now - 7 * DAY);
+  const w2 = new Date(now - 14 * DAY);
+  const active = async (from: Date, to: Date) => {
+    const [a, b, c] = await Promise.all([
+      Submission.distinct('studentId', { orgId: org, submittedAt: { $gte: from, $lt: to } }),
+      Attendance.distinct('studentId', { orgId: org, status: { $in: ['present', 'late'] }, markedAt: { $gte: from, $lt: to } }),
+      QuizAttempt.distinct('studentId', { orgId: org, status: 'submitted', submittedAt: { $gte: from, $lt: to } }),
+    ]);
+    return new Set([...a, ...b, ...c].map(String));
+  };
+  const last = await active(w1, new Date(now));
+  const before = await active(w2, w1);
+  const week = weekKey(w1);
+  let rewarded = 0;
+  for (const id of last) {
+    if (Date.now() > deadline) break;
+    if (!before.has(id)) continue;
+    if (await reward(orgId, id, 'weeklyStreak', week, `Learning streak — week ${week}`)) rewarded++;
+  }
+  return { rewarded };
+}
+
+type JobName = 'premium' | 'attendance' | 'automation' | 'retention' | 'tokens';
 
 async function logged(orgId: string, job: JobName, fn: () => Promise<Record<string, unknown>>): Promise<Record<string, unknown>> {
   const run = await AutomationRun.create({ orgId: oid(orgId), job, mode: 'live', by: 'schedule', byName: 'Daily schedule' });
@@ -134,6 +168,7 @@ export async function runDailyJobs(budgetMs: number): Promise<Record<string, unk
     if (s.premiumEnabled && Date.now() < deadline) r.premium = await logged(orgId, 'premium', () => premiumSweep(orgId, deadline));
     if (Date.now() < deadline) r.attendance = await logged(orgId, 'attendance', () => attendanceAlerts(orgId, deadline));
     if (Date.now() < deadline) r.automation = await logged(orgId, 'automation', () => automationDaily(orgId, deadline));
+    if (s.tokensEnabled && Date.now() < deadline) r.tokens = await logged(orgId, 'tokens', () => streakRewards(orgId, deadline));
     if (Date.now() < deadline) r.retention = await logged(orgId, 'retention', () => retentionCleanup(orgId));
     out[orgId] = r;
   }

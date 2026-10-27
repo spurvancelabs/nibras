@@ -26,7 +26,7 @@ import { AppearanceSection } from './sections/Appearance';
 import { FeaturesSection, AnnouncementSection } from './sections/Learning';
 import { MembersSection, CertificatesSection } from './sections/People';
 import { SecuritySection, SignInSection, MaintenanceSection } from './sections/Access';
-import { PremiumSection, ThemeAccessSection, AttendanceRulesSection, AiSection, RetentionSection, RolesSection } from './sections/Policy';
+import { PremiumSection, ThemeAccessSection, AttendanceRulesSection, AiSection, RetentionSection, RolesSection, RegistrationSection, TokensSection } from './sections/Policy';
 import type { SetField, TwoFactorStatRow } from './sections/types';
 
 type SectionId =
@@ -46,7 +46,9 @@ type SectionId =
   | 'attendanceRules'
   | 'ai'
   | 'retention'
-  | 'roles';
+  | 'roles'
+  | 'registration'
+  | 'tokens';
 
 type SectionDef = {
   id: SectionId;
@@ -73,15 +75,17 @@ const SECTIONS: SectionDef[] = [
     keywords: 'theme colour color palette style design glass neumorphism brutal dark light mode font radius corners scene anime deluxe artwork personal',
     keys: ['themePresetId', 'light', 'dark', 'font', 'radiusMd', 'radiusLg', 'themeMode', 'uiStyle', 'allowUserThemes', 'allowUserStyles', 'showScene', 'heroArt'],
   },
+  { id: 'tokens', label: 'Tokens', icon: 'award', group: 'Look & feel', desc: 'Your own reward currency', keywords: 'tokens coins currency rewards points wallet leaderboard earn spend', keys: ['tokensEnabled', 'tokenName', 'tokenIcon', 'tokenRules', 'tokenDailyCap', 'tokenTransfers', 'tokenTransferDailyMax', 'tokenLeaderboard'], level: 'super' },
   { id: 'premium', label: 'Premium', icon: 'crown', group: 'Look & feel', desc: 'Membership on/off and wording', keywords: 'premium membership paid upgrade subscription', keys: ['premiumEnabled', 'premiumName', 'premiumHowTo', 'premiumPerks'], level: 'super' },
   { id: 'themeAccess', label: 'Theme access', icon: 'palette', group: 'Look & feel', desc: 'Which themes are Premium', keywords: 'premium themes tiers free locked deluxe anime entitlement', keys: ['themeTiers', 'themeOverrides', 'styleTiers', 'styleOverrides'], level: 'entitle' },
-  { id: 'features', label: 'Features', icon: 'dash', group: 'Learning', desc: 'Switch sections on or off', keywords: 'quizzes certificates syllabus gradebook queries modules', keys: ['featureQuizzes', 'featureCertificates', 'featureSyllabus', 'featureGradebook', 'featureQueries'] },
+  { id: 'features', label: 'Features', icon: 'dash', group: 'Learning', desc: 'Switch sections on or off', keywords: 'quizzes certificates syllabus gradebook queries modules', keys: ['featureQuizzes', 'featureCertificates', 'featureSyllabus', 'featureGradebook', 'featureQueries', 'featureCourses'] },
   { id: 'announcement', label: 'Announcement', icon: 'bell', group: 'Learning', desc: 'Banner at the top of every page', keywords: 'banner message notice alert', keys: ['announcementEnabled', 'announcementText', 'announcementTone', 'announcementLink', 'announcementAudience'] },
   { id: 'certificates', label: 'Certificates', icon: 'award', group: 'Learning', desc: 'Issuer, signatory and numbering', keywords: 'certificate signature signatory prefix footer issuer', keys: ['certIssuerName', 'certSignatoryName', 'certSignatoryTitle', 'certSignatureImage', 'certPrefix', 'certFooterText'] },
   { id: 'attendanceRules', label: 'Attendance rules', icon: 'attendance', group: 'Learning', desc: 'Low-attendance alerts', keywords: 'attendance threshold absent absence streak alert', keys: ['attendanceThreshold', 'absenceStreakAlert', 'attendanceAlerts'] },
   { id: 'ai', label: 'AI grading', icon: 'grading', group: 'Learning', desc: 'Suggested marks for mentors', keywords: 'ai artificial intelligence grading rubric feedback limit cost', keys: ['aiGradingEnabled', 'aiMonthlyLimit', 'aiMaxChars'], level: 'super' },
   { id: 'members', label: 'Members & IDs', icon: 'users', group: 'Learning', desc: 'Member ID rules', keywords: 'member id roll number format required', keys: ['memberIdRequired', 'memberIdFormat'] },
   { id: 'security', label: 'Security', icon: 'shield', group: 'Access & safety', desc: 'Two-step sign-in, sessions, passwords', keywords: '2fa two-step authenticator mfa session length password alerts', keys: ['twoFactorPolicy', 'sessionMaxHours', 'passwordMinLength', 'newSignInAlerts'], level: 'royal' },
+  { id: 'registration', label: 'Registration', icon: 'users', group: 'Access & safety', desc: 'Let people create accounts', keywords: 'register sign up signup registration self join approval domain', keys: ['registrationEnabled', 'registrationMode', 'registrationDomains', 'registrationVerifyEmail', 'registrationProgramId', 'registrationMessage'], level: 'super' },
   { id: 'signin', label: 'Sign-in page', icon: 'user', group: 'Access & safety', desc: 'Note shown under the sign-in form', keywords: 'login notice note', keys: ['loginNotice'] },
   { id: 'maintenance', label: 'Maintenance', icon: 'settings', group: 'Access & safety', desc: 'Temporarily close the LMS', keywords: 'maintenance downtime close', keys: ['maintenanceMode', 'maintenanceMessage'], level: 'royal' },
   { id: 'retention', label: 'Data retention', icon: 'shield', group: 'Access & safety', desc: 'How long logs are kept', keywords: 'retention delete cleanup audit notifications privacy', keys: ['auditRetentionDays', 'notificationRetentionDays'], level: 'super' },
@@ -105,6 +109,8 @@ export default function SettingsShell({
   canSuper = false,
   canEntitle = false,
   aiConfigured = false,
+  emailOn = false,
+  programs = [],
   initialSection,
   twoFactorStats,
   viewerHas2fa = false,
@@ -114,6 +120,8 @@ export default function SettingsShell({
   canSuper?: boolean;
   canEntitle?: boolean;
   aiConfigured?: boolean;
+  emailOn?: boolean;
+  programs?: { id: string; name: string }[];
   initialSection?: string;
   twoFactorStats: TwoFactorStatRow[];
   viewerHas2fa?: boolean;
@@ -226,11 +234,11 @@ export default function SettingsShell({
 
   const sectionDirty = (s: SectionDef) => s.keys.some((k) => changed.includes(k));
   const current = SECTIONS.find((s) => s.id === section)!;
-  const props = { form, set, setForm, canRoyal, canSuper, canEntitle };
+  const props = { form, set, setForm, canRoyal, canSuper, canEntitle, programs };
   const locked = (s: SectionDef) => (s.level === 'royal' && !canRoyal) || (s.level === 'super' && !canSuper) || (s.level === 'entitle' && !canEntitle);
   const preset = findPreset(form.themePresetId);
   const style = findUiStyle(form.uiStyle);
-  const featuresOn = [form.featureQuizzes, form.featureCertificates, form.featureSyllabus, form.featureGradebook, form.featureQueries].filter(Boolean).length;
+  const featuresOn = [form.featureQuizzes, form.featureCertificates, form.featureSyllabus, form.featureGradebook, form.featureQueries, form.featureCourses].filter(Boolean).length;
 
   return (
     <div className="space-y-6">
@@ -251,7 +259,7 @@ export default function SettingsShell({
               <NavIcon name="sparkle" size={14} /> {style?.name ?? 'Classic'}
             </span>
             <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-surface/80 border border-border">
-              <NavIcon name="dash" size={14} /> {featuresOn}/5 features on
+              <NavIcon name="dash" size={14} /> {featuresOn}/6 features on
             </span>
             <span className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full bg-surface/80 border border-border">
               <NavIcon name="shield" size={14} /> 2-step: {form.twoFactorPolicy}
@@ -366,6 +374,8 @@ export default function SettingsShell({
           {section === 'ai' && <AiSection {...props} aiConfigured={aiConfigured} />}
           {section === 'retention' && <RetentionSection {...props} />}
           {section === 'roles' && <RolesSection {...props} />}
+          {section === 'registration' && <RegistrationSection {...props} emailOn={emailOn} />}
+          {section === 'tokens' && <TokensSection {...props} />}
         </form>
       </div>
 

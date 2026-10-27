@@ -16,6 +16,7 @@ const FEATURES = [
   ['featureSyllabus', 'Syllabus', 'A week-by-week syllabus on every program page.', '🗺️'],
   ['featureGradebook', 'Gradebook', 'Marks for every student across assignments and quizzes, with CSV export.', '📊'],
   ['featureQueries', 'Queries', 'Students can ask mentors questions and get replies.', '💬'],
+  ['featureCourses', 'Video courses', 'Pre-recorded courses with lessons, explanations and resources that learners enrol in.', '🎬'],
 ] as const;
 
 export function FeaturesSection({ form, set }: SectionProps) {

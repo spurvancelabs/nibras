@@ -89,6 +89,8 @@ export type GrantInput = {
   mode: 'extend' | 'set';
   note?: string;
   notifyUsers?: boolean;
+  /** How it was obtained (history + member list). Default 'admin'. */
+  source?: 'admin' | 'tokens';
 };
 
 export async function grantPremium(actor: Actor, input: GrantInput): Promise<{ changed: number }> {
@@ -104,13 +106,13 @@ export async function grantPremium(actor: Actor, input: GrantInput): Promise<{ c
     const prev = u.premiumUntil ?? null;
     const active = isPremiumActive(prev, now);
     const until = input.mode === 'set' ? extendUntil(null, input.days, now) : extendUntil(prev, input.days, now);
-    const set: Record<string, unknown> = { premiumUntil: until, premiumSource: 'admin' };
+    const set: Record<string, unknown> = { premiumUntil: until, premiumSource: input.source ?? 'admin' };
     if (!active) set.premiumSince = new Date(now);
     ops.push({ updateOne: { filter: { _id: u._id, orgId: oid(actor.orgId) }, update: { $set: set } } });
     events.push({ userId: String(u._id), type: active ? 'extended' : 'granted', until, prev });
   }
   if (ops.length) await User.bulkWrite(ops);
-  for (const e of events) await record(actor.orgId, e.userId, e.type, e.until, e.prev, { actor, note: input.note });
+  for (const e of events) await record(actor.orgId, e.userId, e.type, e.until, e.prev, { actor, note: input.note, source: input.source ?? 'admin' });
   await invalidateAuthState(events.map((e) => e.userId));
   if (input.notifyUsers !== false) {
     for (const e of events.slice(0, 300)) {

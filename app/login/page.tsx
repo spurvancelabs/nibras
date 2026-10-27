@@ -31,6 +31,7 @@ export default async function LoginPage({
       notice={s.loginNotice || ''}
       passwordChanged={sp.changed === '1'}
       heroArt={s.heroArt || ''}
+      registrationOpen={s.registrationEnabled === true}
       character={s.heroArt ? null : characterFor(findPreset(s.themePresetId), s.showScene)}
     />
   );

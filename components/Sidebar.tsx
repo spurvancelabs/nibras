@@ -19,7 +19,7 @@ import NavIcon from './NavIcon';
 import { visibleNav, groupedNav, groupLabel, isActivePath, type Features, type NavItem, type NavGroup } from '@/lib/nav';
 import type { PermissionOverrides } from '@/lib/rbac';
 import { LEVEL_LABEL, levelOf } from '@/lib/rbac';
-import { openCommandPalette } from './CommandPalette';
+import { openCommandPalette } from './palette-events';
 import type { Role } from '@/lib/constants';
 
 type Props = {

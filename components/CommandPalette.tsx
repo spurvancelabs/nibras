@@ -39,11 +39,8 @@ const KIND_ICON: Record<SearchHit['kind'], IconName> = {
   user: 'user',
 };
 
-export const OPEN_PALETTE_EVENT = 'lms-open-palette';
-
-export function openCommandPalette() {
-  window.dispatchEvent(new Event(OPEN_PALETTE_EVENT));
-}
+import { OPEN_PALETTE_EVENT, openCommandPalette } from './palette-events';
+export { OPEN_PALETTE_EVENT, openCommandPalette };
 
 export default function CommandPalette({
   role,
@@ -51,7 +48,9 @@ export default function CommandPalette({
   superAdmin = false,
   features,
   overrides,
+  openOnMount = false,
 }: {
+  openOnMount?: boolean;
   role: Role;
   royal: boolean;
   superAdmin?: boolean;
@@ -59,7 +58,7 @@ export default function CommandPalette({
   overrides?: PermissionOverrides | null;
 }) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(openOnMount);
   const [q, setQ] = useState('');
   const [active, setActive] = useState(0);
   const [hits, setHits] = useState<SearchHit[]>([]);

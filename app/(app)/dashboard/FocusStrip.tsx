@@ -16,12 +16,13 @@ import { listFlags } from '@/lib/automation';
 import { premiumStats } from '@/lib/premium';
 import { getSettings } from '@/lib/settings';
 import NavIcon from '@/components/NavIcon';
+import { cached } from '@/lib/cache';
 
 type Tile = { href: string; label: string; value: string; hint: string; icon: Parameters<typeof NavIcon>[0]['name']; tone?: 'warning' | 'primary' };
 
 async function tilesFor(user: SessionUser): Promise<Tile[]> {
   if (user.role === 'student') {
-    const p = await learnerProgress(user.orgId, user.id);
+    const p = await cached(['progress', user.id], 45, () => learnerProgress(user.orgId, user.id), [`user-summary:${user.id}`]);
     const n = p.next[0];
     const earned = p.achievements.filter((a) => a.earned).length;
     return [
@@ -32,7 +33,7 @@ async function tilesFor(user: SessionUser): Promise<Tile[]> {
       { href: '/progress', label: 'Achievements', value: `${earned}/${p.achievements.length}`, hint: 'See your badges', icon: 'award' },
     ];
   }
-  const g = await gradingStats(user);
+  const g = await cached(['grading-stats', user.id], 30, () => gradingStats(user), [`user-summary:${user.id}`]);
   const tiles: Tile[] = [
     { href: '/grading', label: 'To grade', value: String(g.toGrade), hint: g.toGrade ? 'Oldest first in the queue' : 'All caught up', icon: 'grading', tone: g.toGrade ? 'warning' : undefined },
     { href: '/grading', label: 'AI suggestions', value: String(g.aiReady), hint: g.aiReady ? 'Waiting for your review' : 'None waiting', icon: 'sparkle', tone: g.aiReady ? 'primary' : undefined },

@@ -26,6 +26,8 @@ type Props = {
   heroArt?: string;
   /** Original anime character for Anime Deluxe organisation themes. */
   character?: CharacterId | null;
+  /** Show "Create an account" (Settings → Registration). */
+  registrationOpen?: boolean;
 };
 
 export default function LoginForm({
@@ -37,6 +39,7 @@ export default function LoginForm({
   passwordChanged = false,
   heroArt = '',
   character = null,
+  registrationOpen = false,
 }: Props) {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -69,6 +72,9 @@ export default function LoginForm({
       } else if (err.includes('TWO_FACTOR_INVALID')) {
         setNeedCode(true);
         setError(useRecovery ? 'That recovery code is not valid (each code works once).' : 'That code is not right. Use the newest code from your app.');
+      } else if (err.includes('ACCOUNT_PENDING')) {
+        setNeedCode(false);
+        setError('Your account is not active yet. Confirm your email (check your inbox) or wait for an admin to approve it.');
       } else if (err.includes('ACCOUNT_DISABLED')) {
         setNeedCode(false);
         setError('Your account is paused. Nothing was deleted — please contact your admin to reactivate it.');
@@ -326,6 +332,14 @@ export default function LoginForm({
                 </>
               )}
             </div>
+            {registrationOpen && (
+              <p className="text-center text-sm text-muted">
+                New here?{' '}
+                <Link href="/register" className="font-medium text-text underline underline-offset-2">
+                  Create an account
+                </Link>
+              </p>
+            )}
           </form>
         </div>
       </section>

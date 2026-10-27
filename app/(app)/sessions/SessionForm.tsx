@@ -79,6 +79,8 @@ export default function SessionForm({ programs, mentors, viewerRole, initial, ca
     meetingUrl: initial?.meetingUrl ?? '',
     recordingUrl: initial?.recordingUrl ?? '',
     status: initial?.status ?? 'scheduled',
+    access: initial?.access ?? 'free',
+    tokenPrice: initial?.tokenPrice ?? 20,
   });
 
   const [mentorId, setMentorId] = useState('');
@@ -102,6 +104,8 @@ export default function SessionForm({ programs, mentors, viewerRole, initial, ca
         meetingUrl: form.meetingUrl,
         recordingUrl: form.recordingUrl,
         status: form.status,
+        access: form.access,
+        tokenPrice: form.tokenPrice,
       });
       if (res.ok) {
         router.push(res.id ? `/sessions/${res.id}` : '/sessions');
@@ -260,6 +264,40 @@ export default function SessionForm({ programs, mentors, viewerRole, initial, ca
                 Upload the video to YouTube as Unlisted, then paste the link here.
               </p>
             </div>
+          </FormSection>
+
+          {/* Access */}
+          <FormSection icon={Icons.check} title="Who can join" hint="Premium and token options only apply when they're switched on in Settings.">
+            <div role="radiogroup" aria-label="Access" className="flex flex-wrap gap-2">
+              {(
+                [
+                  ['free', 'Everyone in the program'],
+                  ['premium', '👑 Premium members'],
+                  ['tokens', '🪙 Pay with tokens'],
+                ] as const
+              ).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  role="radio"
+                  aria-checked={form.access === v}
+                  onClick={() => setForm({ ...form, access: v })}
+                  className={`h-10 px-4 rounded-[var(--radius-md)] border text-sm font-medium transition ${
+                    form.access === v ? 'border-primary bg-primary text-primary-fg' : 'border-border bg-surface text-muted hover:text-text hover:bg-hero'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {form.access === 'tokens' && (
+              <label className="flex items-center gap-2 text-sm">
+                Price
+                <input type="number" min={1} max={1000000} className="input h-10 w-28" value={form.tokenPrice} onChange={(e) => setForm({ ...form, tokenPrice: Math.max(1, Math.round(Number(e.target.value) || 1)) })} />
+                tokens (Premium members get it free)
+              </label>
+            )}
+            {form.access !== 'free' && <p className="text-xs text-muted">Learners without access still see the title, time and agenda — never the link, recording or materials.</p>}
           </FormSection>
 
           {/* Status */}

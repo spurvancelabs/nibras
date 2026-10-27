@@ -9,6 +9,7 @@
 import { useEffect, useState } from 'react';
 import { THEME_COOKIE } from '@/lib/theme-script';
 import NavIcon from './NavIcon';
+import { smoothThemeChange } from '@/lib/theme-shift';
 
 export type ThemeMode = 'light' | 'dark' | 'system';
 
@@ -31,7 +32,7 @@ export function readThemeMode(): ThemeMode {
 export function applyThemeMode(mode: ThemeMode) {
   document.cookie = `${THEME_COOKIE}=${encodeURIComponent(mode)}; path=/; max-age=31536000; samesite=lax`;
   const isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.classList.toggle('dark', isDark);
+  smoothThemeChange(() => document.documentElement.classList.toggle('dark', isDark));
   window.dispatchEvent(new CustomEvent('lms-theme-mode', { detail: mode }));
 }
 

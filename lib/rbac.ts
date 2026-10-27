@@ -46,6 +46,10 @@ export const PERMISSIONS = {
   'automation.view': 'admin',
   'automation.review': 'admin',
   'premium.view': 'admin',
+  'courses.manage': 'admin',
+  'tokens.view': 'admin',
+  'tokens.grant': 'royal',
+  'registration.approve': 'admin',
   'premium.grant': 'royal',
   'premium.codes': 'royal',
   'themes.entitlements': 'royal',
@@ -62,6 +66,8 @@ export const PERMISSIONS = {
   'ai.configure': 'super',
   'retention.configure': 'super',
   'super.manage': 'super',
+  'registration.configure': 'super',
+  'tokens.configure': 'super',
 } as const satisfies Record<string, Level>;
 
 export type Permission = keyof typeof PERMISSIONS;
@@ -72,6 +78,8 @@ export const DELEGABLE: Partial<Record<Permission, Level[]>> = {
   'premium.codes': ['admin', 'royal', 'super'],
   'themes.entitlements': ['admin', 'royal', 'super'],
   'automation.review': ['admin', 'royal', 'super'],
+  'courses.manage': ['mentor', 'admin', 'royal', 'super'],
+  'tokens.grant': ['admin', 'royal', 'super'],
 };
 
 export type PermissionOverrides = Partial<Record<Permission, Level>>;

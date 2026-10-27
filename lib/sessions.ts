@@ -20,6 +20,8 @@ export type SessionListItem = {
   recordingUrl: string;
   status: SessionStatus;
   createdAt: string;
+  access: 'free' | 'premium' | 'tokens';
+  tokenPrice: number;
 };
 
 export type SessionDetail = SessionListItem & {
@@ -38,6 +40,8 @@ type LeanPopulated = {
   recordingUrl?: string;
   status: SessionStatus;
   createdAt: Date;
+  access?: 'free' | 'premium' | 'tokens';
+  tokenPrice?: number;
 };
 
 function effectiveStatus(
@@ -72,6 +76,8 @@ function mapRow(r: LeanPopulated): SessionListItem {
       new Date(r.endsAt)
     ),
     createdAt: new Date(r.createdAt).toISOString(),
+    access: r.access === 'premium' || r.access === 'tokens' ? r.access : 'free',
+    tokenPrice: Number(r.tokenPrice ?? 0) || 0,
   };
 }
 
@@ -220,6 +226,8 @@ export async function createSession(input: {
   recordingUrl?: string;
   status?: SessionStatus;
   createdBy: string;
+  access?: 'free' | 'premium' | 'tokens';
+  tokenPrice?: number;
 }): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   await db();
 
@@ -239,6 +247,8 @@ export async function createSession(input: {
     recordingUrl: input.recordingUrl ?? '',
     status: input.status ?? 'scheduled',
     createdBy: input.createdBy,
+    access: input.access ?? 'free',
+    tokenPrice: Math.max(0, Math.round(input.tokenPrice ?? 0)),
   });
 
   return { ok: true, id: String(doc._id) };
@@ -255,6 +265,8 @@ export async function updateSession(
     meetingUrl?: string;
     recordingUrl?: string;
     status?: SessionStatus;
+    access?: 'free' | 'premium' | 'tokens';
+    tokenPrice?: number;
   }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   await db();
@@ -267,6 +279,8 @@ export async function updateSession(
   if (patch.meetingUrl !== undefined) set.meetingUrl = patch.meetingUrl;
   if (patch.recordingUrl !== undefined) set.recordingUrl = patch.recordingUrl;
   if (patch.status !== undefined) set.status = patch.status;
+  if (patch.access !== undefined) set.access = patch.access;
+  if (patch.tokenPrice !== undefined) set.tokenPrice = Math.max(0, Math.round(patch.tokenPrice));
 
   const res = await Session.updateOne({ _id: id, orgId }, { $set: set });
   if (res.matchedCount === 0) return { ok: false, error: 'Session not found' };

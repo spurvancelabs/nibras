@@ -30,6 +30,8 @@ export type SessionUser = {
   superAdmin?: boolean;
   /** Premium membership end (ISO) or null. */
   premiumUntil?: string | null;
+  /** Token balance (may be up to 30 s old). */
+  tokens?: number;
 };
 
 export async function getCurrentUser(): Promise<SessionUser | null> {

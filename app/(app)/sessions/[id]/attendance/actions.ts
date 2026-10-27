@@ -8,6 +8,7 @@ import { setSessionAttendance } from '@/lib/attendance';
 import { isProgramActive } from '@/lib/programs';
 import { ATTENDANCE_STATUSES } from '@/lib/constants';
 import { auditBy } from '@/lib/audit';
+import { reward } from '@/lib/tokens';
 
 const entrySchema = z.object({
   studentId: z.string().min(1),
@@ -62,6 +63,13 @@ export async function saveAttendanceAction(raw: unknown): Promise<ActionResult> 
     force: parsed.data.force,
   });
   if (!res.ok) return res;
+
+  // Token rewards for attending (once per session per learner).
+  for (const c of res.changes) {
+    if (c.to === 'present' || c.to === 'late') {
+      await reward(user.orgId, c.studentId, c.to === 'present' ? 'attendancePresent' : 'attendanceLate', session.id, `Attended “${session.title}”`, 'attendance');
+    }
+  }
 
   if (res.changes.length) {
     const tally = res.changes.reduce<Record<string, number>>((m, c) => ((m[c.to] = (m[c.to] ?? 0) + 1), m), {});

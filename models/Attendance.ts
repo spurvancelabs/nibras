@@ -46,6 +46,8 @@ const AttendanceSchema = new Schema(
 AttendanceSchema.index({ sessionId: 1, studentId: 1 }, { unique: true });
 AttendanceSchema.index({ orgId: 1, studentId: 1, createdAt: -1 });
 AttendanceSchema.index({ orgId: 1, programId: 1, studentId: 1 });
+// Inactivity checks and alerts (recent attendance per learner).
+AttendanceSchema.index({ orgId: 1, studentId: 1, markedAt: -1 });
 
 export type AttendanceDoc = InferSchemaType<typeof AttendanceSchema> & {
   _id: string;
